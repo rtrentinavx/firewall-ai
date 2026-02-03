@@ -1,0 +1,43 @@
+# Copy this file to terraform.tfvars and fill in your values
+
+project_id      = "firewall-auditor-prod"
+billing_account = "XXXXX-XXXXX-XXXXX"
+region          = "us-central1"
+environment     = "prod"
+
+# Application Settings
+backend_cpu             = "2"
+backend_memory          = "2Gi"
+frontend_cpu            = "1"
+frontend_memory         = "512Mi"
+max_backend_instances   = 10
+max_frontend_instances  = 5
+
+# Security Credentials (use environment variables instead)
+# export TF_VAR_gemini_api_key="your-key"
+# export TF_VAR_azure_subscription_id="your-id"
+gemini_api_key = ""  # Set via env var
+azure_subscription_id = ""  # Optional
+azure_tenant_id = ""  # Optional
+azure_client_id = ""  # Optional
+azure_client_secret = ""  # Optional
+
+# Monitoring
+alert_email = "carlos@company.com"
+slack_webhook_url = ""  # Optional
+
+# Scheduling
+batch_audit_schedule = "0 2 * * 1"  # Monday 2 AM
+
+# Feature Flags
+enable_shadow_mode    = true
+enable_cloud_armor    = true
+enable_vpc_connector  = false
+
+# Labels
+labels = {
+  application = "firewall-auditor"
+  team        = "security"
+  cost-center = "engineering"
+  managed-by  = "terraform"
+}

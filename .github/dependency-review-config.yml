@@ -1,0 +1,33 @@
+fail_on_severity: moderate
+allow_licenses:
+  - MIT
+  - Apache-2.0
+  - BSD-2-Clause
+  - BSD-3-Clause
+  - ISC
+  - CC0-1.0
+  - Unlicense
+  - PostgreSQL
+  - BSD-2-Clause-FreeBSD
+  - BSD-3-Clause-LBNL
+  - BSD-4-Clause
+  - Zlib
+  - CC-BY-3.0
+  - CC-BY-4.0
+  - WTFPL
+  - EPL-1.0
+  - EPL-2.0
+  - MPL-2.0
+  - LGPL-2.1
+  - LGPL-3.0
+  - GPL-2.0
+  - GPL-3.0
+  - AGPL-3.0
+deny_licenses:
+  - MS-PL
+  - WSL
+  - WSLX
+vulnerability_check: true
+license_check: true
+base_ref: main
+head_ref: HEAD

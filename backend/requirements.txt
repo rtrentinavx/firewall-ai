@@ -1,0 +1,54 @@
+# Core Flask application
+Flask==2.3.3
+Flask-CORS==4.0.0
+python-dotenv==1.0.0
+Werkzeug==2.3.7
+
+# LangGraph and LangChain for agentic workflows
+langgraph==0.0.32
+langchain==0.1.5
+langchain-google-vertexai==0.1.2
+langchain-community==0.0.13
+
+# Google Cloud and Vertex AI
+google-cloud-aiplatform==1.39.0
+google-cloud-firestore==2.14.0
+google-cloud-storage==2.10.0
+google-cloud-secret-manager==2.17.0
+google-auth==2.23.4
+
+# Data processing and validation
+pydantic==2.5.2
+pandas==2.1.4
+numpy==1.26.2
+jsonschema==4.19.2
+
+# Caching and vector operations
+redis==5.0.1
+faiss-cpu==1.7.4
+sentence-transformers==2.2.2
+
+# API and utilities
+requests==2.31.0
+aiohttp==3.9.1
+tenacity==8.2.3
+
+# Testing and development
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-mock==3.12.0
+black==23.12.1
+flake8==6.1.0
+mypy==1.7.1
+
+# Logging and monitoring
+structlog==23.2.0
+sentry-sdk[flask]==1.38.0
+
+# Azure integration (for multi-cloud support)
+azure-identity==1.15.0
+azure-mgmt-network==25.1.0
+azure-mgmt-resource==23.0.1
+
+# Aviatrix integration (placeholder for future implementation)
+# aviatrix-sdk==1.0.0  # Custom SDK to be developed

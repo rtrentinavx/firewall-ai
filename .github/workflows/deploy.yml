@@ -1,0 +1,197 @@
+name: Deploy Infrastructure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'terraform/main.tf'
+      - 'terraform/variables.tf'
+      - 'terraform/outputs.tf'
+      - 'terraform/versions.tf'
+      - 'terraform/modules/**'
+      - 'terraform/environments/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+env:
+  TF_VERSION: '1.6.0'
+  TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+  TF_VAR_billing_account: ${{ secrets.GCP_BILLING_ACCOUNT }}
+  TF_VAR_org_id: ${{ secrets.GCP_ORG_ID }}
+  GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
+
+jobs:
+  plan:
+    name: "Terraform Plan"
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    outputs:
+      tfplan: ${{ steps.plan.outputs.tfplan }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Create tfvars file
+        run: |
+          cat > terraform/terraform.tfvars << EOF
+          project_id = "${{ secrets.GCP_PROJECT_ID }}"
+          billing_account = "${{ secrets.GCP_BILLING_ACCOUNT }}"
+          org_id = "${{ secrets.GCP_ORG_ID }}"
+          environment = "${{ github.event.inputs.environment || 'dev' }}"
+          region = "${{ secrets.GCP_REGION || 'us-central1' }}"
+          alert_email = "${{ secrets.ALERT_EMAIL }}"
+          gemini_api_key = "${{ secrets.GEMINI_API_KEY }}"
+          azure_subscription_id = "${{ secrets.AZURE_SUBSCRIPTION_ID || '' }}"
+          azure_tenant_id = "${{ secrets.AZURE_TENANT_ID || '' }}"
+          azure_client_id = "${{ secrets.AZURE_CLIENT_ID || '' }}"
+          azure_client_secret = "${{ secrets.AZURE_CLIENT_SECRET || '' }}"
+          slack_webhook_url = "${{ secrets.SLACK_WEBHOOK_URL || '' }}"
+          EOF
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: terraform
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -var-file=terraform.tfvars -out=tfplan -no-color
+          terraform show -json tfplan > tfplan.json
+        working-directory: terraform
+        continue-on-error: true
+
+      - name: Update Pull Request
+        uses: actions/github-script@v6
+        if: github.event_name == 'pull_request'
+        env:
+          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### Terraform Format and Validate 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`\n
+            ${process.env.PLAN}
+            \`\`\`
+
+            </details>
+
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      - name: Terraform Plan Status
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+
+      - name: Upload Terraform Plan
+        uses: actions/upload-artifact@v3
+        with:
+          name: tfplan
+          path: |
+            tfplan
+            tfplan.json
+        if: always()
+
+  apply:
+    name: "Terraform Apply"
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'prod' }}
+    needs: plan
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Download Terraform Plan
+        uses: actions/download-artifact@v3
+        with:
+          name: tfplan
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+        working-directory: terraform
+
+      - name: Get deployment outputs
+        id: outputs
+        run: |
+          echo "backend_url=$(terraform output -raw backend_url)" >> $GITHUB_OUTPUT
+          echo "frontend_url=$(terraform output -raw frontend_url)" >> $GITHUB_OUTPUT
+          echo "deployment_commands=$(terraform output -json deployment_commands)" >> $GITHUB_OUTPUT
+        working-directory: terraform
+
+      - name: Deploy Applications
+        run: |
+          # Build and deploy backend
+          gcloud builds submit --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/firewall-auditor-backend:latest ./backend --project ${{ secrets.GCP_PROJECT_ID }}
+          gcloud run services update firewall-auditor-backend --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/firewall-auditor-backend:latest --region ${{ secrets.GCP_REGION || 'us-central1' }} --project ${{ secrets.GCP_PROJECT_ID }}
+
+          # Build and deploy frontend
+          gcloud builds submit --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/firewall-auditor-frontend:latest ./frontend --project ${{ secrets.GCP_PROJECT_ID }}
+          gcloud run services update firewall-auditor-frontend --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/firewall-auditor-frontend:latest --region ${{ secrets.GCP_REGION || 'us-central1' }} --project ${{ secrets.GCP_PROJECT_ID }}
+        if: exists('./backend') && exists('./frontend')
+
+      - name: Notify on success
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          text: "Infrastructure deployed successfully to ${{ github.event.inputs.environment || 'prod' }} environment"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: always()
+
+      - name: Notify on failure
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          text: "Infrastructure deployment failed for ${{ github.event.inputs.environment || 'prod' }} environment"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: failure()
