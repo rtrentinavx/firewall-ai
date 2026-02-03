@@ -146,8 +146,12 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      security-events: write
 
     steps:
+      - name: "Checkout code"
+        uses: actions/checkout@v4
+
       - name: "Run analysis"
         uses: ossf/scorecard-action@v2.4.0
         with:
