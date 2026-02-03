@@ -1,0 +1,312 @@
+"""
+Terraform HCL parser for firewall rules.
+Extracts firewall rules from Terraform configurations.
+"""
+
+import re
+import json
+from typing import List, Dict, Any, Optional
+from pathlib import Path
+
+
+def parse_terraform_content(content: str, cloud_provider: str = 'aviatrix') -> List[Dict[str, Any]]:
+    """
+    Parse Terraform HCL content and extract firewall rules.
+    
+    Args:
+        content: Raw Terraform HCL content
+        cloud_provider: Target cloud provider (aviatrix, gcp, azure, etc.)
+    
+    Returns:
+        List of parsed firewall rules
+    """
+    rules = []
+    
+    # Parse based on provider
+    if cloud_provider == 'gcp':
+        rules.extend(_parse_gcp_firewall_rules(content))
+    elif cloud_provider == 'azure':
+        rules.extend(_parse_azure_nsg_rules(content))
+    elif cloud_provider == 'aviatrix':
+        rules.extend(_parse_aviatrix_rules(content))
+    elif cloud_provider in ['cisco', 'palo_alto']:
+        rules.extend(_parse_generic_firewall_rules(content, cloud_provider))
+    else:
+        # Try generic parsing
+        rules.extend(_parse_generic_firewall_rules(content, cloud_provider))
+    
+    return rules
+
+
+def parse_terraform_directory(directory_path: str, cloud_provider: str = 'aviatrix') -> List[Dict[str, Any]]:
+    """
+    Parse all Terraform files in a directory.
+    
+    Args:
+        directory_path: Path to directory containing .tf files
+        cloud_provider: Target cloud provider
+    
+    Returns:
+        List of parsed firewall rules from all files
+    """
+    all_rules = []
+    dir_path = Path(directory_path)
+    
+    if not dir_path.exists() or not dir_path.is_dir():
+        raise ValueError(f"Directory not found: {directory_path}")
+    
+    # Find all .tf files
+    tf_files = list(dir_path.rglob("*.tf"))
+    
+    for tf_file in tf_files:
+        try:
+            content = tf_file.read_text(encoding='utf-8')
+            rules = parse_terraform_content(content, cloud_provider)
+            all_rules.extend(rules)
+        except Exception as e:
+            print(f"Error parsing {tf_file}: {e}")
+            continue
+    
+    return all_rules
+
+
+def _parse_gcp_firewall_rules(content: str) -> List[Dict[str, Any]]:
+    """Parse GCP compute firewall rules from Terraform."""
+    rules = []
+    
+    # Pattern to match google_compute_firewall resources
+    pattern = r'resource\s+"google_compute_firewall"\s+"([^"]+)"\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}'
+    
+    matches = re.finditer(pattern, content, re.DOTALL)
+    
+    for match in matches:
+        resource_name = match.group(1)
+        resource_body = match.group(2)
+        
+        rule = {
+            'id': f'gcp-{resource_name}-{hash(resource_body) % 10000}',
+            'name': _extract_value(resource_body, 'name') or resource_name,
+            'description': _extract_value(resource_body, 'description'),
+            'cloud_provider': 'gcp',
+            'direction': _extract_value(resource_body, 'direction') or 'ingress',
+            'action': 'allow' if 'allow' in resource_body else 'deny',
+            'priority': int(_extract_value(resource_body, 'priority') or 1000),
+            'source_ranges': _extract_list(resource_body, 'source_ranges'),
+            'destination_ranges': _extract_list(resource_body, 'destination_ranges'),
+            'source_tags': _extract_list(resource_body, 'source_tags'),
+            'target_tags': _extract_list(resource_body, 'target_tags'),
+            'protocols': _extract_protocols_gcp(resource_body),
+            'ports': _extract_ports_gcp(resource_body),
+            'network': _extract_value(resource_body, 'network'),
+            'disabled': _extract_value(resource_body, 'disabled') == 'true',
+        }
+        
+        rules.append(rule)
+    
+    return rules
+
+
+def _parse_azure_nsg_rules(content: str) -> List[Dict[str, Any]]:
+    """Parse Azure NSG rules from Terraform."""
+    rules = []
+    
+    # Pattern for azurerm_network_security_rule
+    pattern = r'resource\s+"azurerm_network_security_rule"\s+"([^"]+)"\s*\{([^}]+)\}'
+    
+    matches = re.finditer(pattern, content, re.DOTALL)
+    
+    for match in matches:
+        resource_name = match.group(1)
+        resource_body = match.group(2)
+        
+        rule = {
+            'id': f'azure-{resource_name}-{hash(resource_body) % 10000}',
+            'name': _extract_value(resource_body, 'name') or resource_name,
+            'description': _extract_value(resource_body, 'description'),
+            'cloud_provider': 'azure',
+            'direction': _extract_value(resource_body, 'direction') or 'Inbound',
+            'action': _extract_value(resource_body, 'access') or 'Allow',
+            'priority': int(_extract_value(resource_body, 'priority') or 100),
+            'source_ranges': [_extract_value(resource_body, 'source_address_prefix') or 'Any'],
+            'destination_ranges': [_extract_value(resource_body, 'destination_address_prefix') or 'Any'],
+            'protocols': [_extract_value(resource_body, 'protocol') or 'TCP'],
+            'ports': _extract_azure_ports(resource_body),
+        }
+        
+        rules.append(rule)
+    
+    return rules
+
+
+def _parse_aviatrix_rules(content: str) -> List[Dict[str, Any]]:
+    """Parse Aviatrix firewall rules from Terraform."""
+    rules = []
+    
+    # Pattern for aviatrix_firewall resources
+    pattern = r'resource\s+"aviatrix_firewall(?:_policy)?"\s+"([^"]+)"\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}'
+    
+    matches = re.finditer(pattern, content, re.DOTALL)
+    
+    for match in matches:
+        resource_name = match.group(1)
+        resource_body = match.group(2)
+        
+        # Extract policy blocks
+        policy_pattern = r'policy\s*\{([^}]+)\}'
+        policy_matches = re.finditer(policy_pattern, resource_body, re.DOTALL)
+        
+        for policy_match in policy_matches:
+            policy_body = policy_match.group(1)
+            
+            rule = {
+                'id': f'aviatrix-{resource_name}-{hash(policy_body) % 10000}',
+                'name': _extract_value(policy_body, 'description') or f'{resource_name}-policy',
+                'description': _extract_value(policy_body, 'description'),
+                'cloud_provider': 'aviatrix',
+                'direction': 'ingress',  # Aviatrix typically handles both
+                'action': _extract_value(policy_body, 'action') or 'allow',
+                'source_ranges': [_extract_value(policy_body, 'src_ip') or 'Any'],
+                'destination_ranges': [_extract_value(policy_body, 'dst_ip') or 'Any'],
+                'protocols': [_extract_value(policy_body, 'protocol') or 'all'],
+                'ports': _extract_aviatrix_port(policy_body),
+                'priority': int(_extract_value(policy_body, 'priority') or 0),
+            }
+            
+            rules.append(rule)
+    
+    return rules
+
+
+def _parse_generic_firewall_rules(content: str, cloud_provider: str) -> List[Dict[str, Any]]:
+    """Generic parser for firewall rules."""
+    rules = []
+    
+    # Look for common resource patterns
+    patterns = [
+        r'resource\s+"[^"]*firewall[^"]*"\s+"([^"]+)"\s*\{([^}]+)\}',
+        r'resource\s+"[^"]*security[^"]*"\s+"([^"]+)"\s*\{([^}]+)\}',
+        r'resource\s+"[^"]*rule[^"]*"\s+"([^"]+)"\s*\{([^}]+)\}',
+    ]
+    
+    for pattern in patterns:
+        matches = re.finditer(pattern, content, re.DOTALL | re.IGNORECASE)
+        
+        for match in matches:
+            resource_name = match.group(1)
+            resource_body = match.group(2)
+            
+            rule = {
+                'id': f'{cloud_provider}-{resource_name}-{hash(resource_body) % 10000}',
+                'name': _extract_value(resource_body, 'name') or resource_name,
+                'description': _extract_value(resource_body, 'description'),
+                'cloud_provider': cloud_provider,
+                'direction': _detect_direction(resource_body),
+                'action': _detect_action(resource_body),
+                'source_ranges': _extract_list(resource_body, 'source') or ['Any'],
+                'destination_ranges': _extract_list(resource_body, 'destination') or ['Any'],
+                'protocols': _extract_list(resource_body, 'protocol') or ['tcp'],
+                'ports': _extract_list(resource_body, 'port') or [],
+            }
+            
+            rules.append(rule)
+    
+    return rules
+
+
+def _extract_value(content: str, key: str) -> Optional[str]:
+    """Extract a single value from HCL content."""
+    pattern = rf'{key}\s*=\s*"([^"]*)"'
+    match = re.search(pattern, content)
+    if match:
+        return match.group(1)
+    
+    # Try without quotes (for booleans, numbers)
+    pattern = rf'{key}\s*=\s*([^\s\n]+)'
+    match = re.search(pattern, content)
+    if match:
+        return match.group(1).strip()
+    
+    return None
+
+
+def _extract_list(content: str, key: str) -> List[str]:
+    """Extract a list value from HCL content."""
+    pattern = rf'{key}\s*=\s*\[([^\]]*)\]'
+    match = re.search(pattern, content)
+    if match:
+        items = match.group(1)
+        # Remove quotes and whitespace, split by comma
+        return [item.strip().strip('"') for item in items.split(',') if item.strip()]
+    return []
+
+
+def _extract_protocols_gcp(content: str) -> List[str]:
+    """Extract protocols from GCP firewall rule."""
+    protocols = []
+    
+    # Look for allow/deny blocks
+    allow_deny_pattern = r'(allow|deny)\s*\{([^}]+)\}'
+    matches = re.finditer(allow_deny_pattern, content, re.DOTALL)
+    
+    for match in matches:
+        block_content = match.group(2)
+        protocol = _extract_value(block_content, 'protocol')
+        if protocol:
+            protocols.append(protocol)
+    
+    return protocols or ['tcp']
+
+
+def _extract_ports_gcp(content: str) -> List[str]:
+    """Extract ports from GCP firewall rule."""
+    ports = []
+    
+    # Look for allow/deny blocks
+    allow_deny_pattern = r'(allow|deny)\s*\{([^}]+)\}'
+    matches = re.finditer(allow_deny_pattern, content, re.DOTALL)
+    
+    for match in matches:
+        block_content = match.group(2)
+        port_list = _extract_list(block_content, 'ports')
+        ports.extend(port_list)
+    
+    return ports
+
+
+def _extract_azure_ports(content: str) -> List[str]:
+    """Extract ports from Azure NSG rule."""
+    dest_port = _extract_value(content, 'destination_port_range')
+    if dest_port and dest_port != '*':
+        return [dest_port]
+    
+    dest_ports = _extract_list(content, 'destination_port_ranges')
+    if dest_ports:
+        return dest_ports
+    
+    return []
+
+
+def _extract_aviatrix_port(content: str) -> List[str]:
+    """Extract port from Aviatrix rule."""
+    port = _extract_value(content, 'port')
+    if port and port != '0-65535':
+        return [port]
+    return []
+
+
+def _detect_direction(content: str) -> str:
+    """Detect direction from content."""
+    content_lower = content.lower()
+    if 'egress' in content_lower or 'outbound' in content_lower:
+        return 'egress'
+    return 'ingress'
+
+
+def _detect_action(content: str) -> str:
+    """Detect action from content."""
+    content_lower = content.lower()
+    if 'deny' in content_lower or 'block' in content_lower or 'drop' in content_lower:
+        return 'deny'
+    if 'redirect' in content_lower:
+        return 'redirect'
+    return 'allow'

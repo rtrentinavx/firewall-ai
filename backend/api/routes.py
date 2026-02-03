@@ -16,6 +16,7 @@ from langgraph.agent import FirewallAuditAgent
 from normalization.engine import NormalizationEngine
 from caching.context_cache import ContextCache
 from caching.semantic_cache import SemanticCache
+from utils.terraform_parser import parse_terraform_content, parse_terraform_directory
 
 logger = logging.getLogger(__name__)
 
@@ -250,6 +251,74 @@ def register_routes(
             'success': True,
             'providers': providers
         })
+
+    @api.route('/api/v1/terraform/parse', methods=['POST'])
+    def parse_terraform():
+        """Parse Terraform HCL content and extract firewall rules"""
+        
+        try:
+            data = request.get_json()
+            
+            if not data:
+                return jsonify({'error': 'No data provided'}), 400
+            
+            terraform_content = data.get('content', '')
+            cloud_provider = data.get('cloud_provider', 'aviatrix')
+            
+            if not terraform_content:
+                return jsonify({'error': 'No Terraform content provided'}), 400
+            
+            # Parse the content
+            rules = parse_terraform_content(terraform_content, cloud_provider)
+            
+            return jsonify({
+                'success': True,
+                'rules': rules,
+                'count': len(rules)
+            })
+        
+        except Exception as e:
+            logger.error(f"Terraform parsing failed: {e}")
+            return jsonify({'error': 'Failed to parse Terraform', 'details': str(e)}), 500
+
+    @api.route('/api/v1/terraform/parse-directory', methods=['POST'])
+    def parse_terraform_dir():
+        """Parse Terraform files from a local directory"""
+        
+        try:
+            data = request.get_json()
+            
+            if not data:
+                return jsonify({'error': 'No data provided'}), 400
+            
+            directory_path = data.get('path', '')
+            cloud_provider = data.get('cloud_provider', 'aviatrix')
+            
+            if not directory_path:
+                return jsonify({'error': 'No directory path provided'}), 400
+            
+            # Validate path exists and is a directory
+            if not os.path.exists(directory_path):
+                return jsonify({'error': f'Directory not found: {directory_path}'}), 404
+            
+            if not os.path.isdir(directory_path):
+                return jsonify({'error': f'Path is not a directory: {directory_path}'}), 400
+            
+            # Parse all .tf files in directory
+            rules = parse_terraform_directory(directory_path, cloud_provider)
+            
+            return jsonify({
+                'success': True,
+                'rules': rules,
+                'count': len(rules),
+                'directory': directory_path
+            })
+        
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        except Exception as e:
+            logger.error(f"Terraform directory parsing failed: {e}")
+            return jsonify({'error': 'Failed to parse Terraform directory', 'details': str(e)}), 500
 
     @api.route('/api/v1/health', methods=['GET'])
     def health_check():

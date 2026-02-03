@@ -14,6 +14,7 @@ import RuleInputForm from '@/components/RuleInputForm';
 import { AuditResults } from '@/components/AuditResults';
 import { DiffViewer } from '@/components/DiffViewer';
 import { CacheStatsDisplay } from '@/components/CacheStatsDisplay';
+import { RuleFlowVisualization } from '@/components/RuleFlowVisualization';
 
 export default function FirewallAuditDashboard() {
   // State management
@@ -91,6 +92,10 @@ export default function FirewallAuditDashboard() {
 
   const handleAddRule = (rule: FirewallRule) => {
     setRules(prev => [...prev, rule]);
+  };
+
+  const handleAddMultipleRules = (newRules: FirewallRule[]) => {
+    setRules(prev => [...prev, ...newRules]);
   };
 
   const handleRemoveRule = (ruleId: string) => {
@@ -227,7 +232,11 @@ export default function FirewallAuditDashboard() {
                   <Badge variant="secondary">{rules.length} rules</Badge>
                 </div>
                 <div className="mt-4">
-                  <RuleInputForm onAddRule={handleAddRule} provider={selectedProvider as CloudProvider} />
+                  <RuleInputForm 
+                    onAddRule={handleAddRule} 
+                    onAddMultipleRules={handleAddMultipleRules}
+                    provider={selectedProvider as CloudProvider} 
+                  />
                 </div>
                 <div className="mt-4 flex flex-wrap gap-3">
                   <Button onClick={handleLoadSampleData} variant="outline">
@@ -331,40 +340,55 @@ export default function FirewallAuditDashboard() {
           </TabsContent>
 
           <TabsContent value="rules" className="pt-6">
-            <div className="rounded-xl border border-slate-200/70 bg-white/80 p-5 dark:border-slate-800/70 dark:bg-slate-900/60">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold text-slate-900 dark:text-white">Rules overview</h3>
-                <Badge variant="secondary">{rules.length} rules</Badge>
+            <div className="space-y-5">
+              {/* Flow Visualization */}
+              <div className="rounded-xl border border-slate-200/70 bg-white/80 p-5 dark:border-slate-800/70 dark:bg-slate-900/60">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-900 dark:text-white">Network Flow Diagram</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Visual representation of firewall rules</p>
+                  </div>
+                  <Badge variant="secondary">{rules.length} rules</Badge>
+                </div>
+                <RuleFlowVisualization rules={rules} />
               </div>
-              <div className="mt-4 space-y-3">
-                {rules.length === 0 && (
-                  <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                    No rules loaded yet.
-                  </div>
-                )}
-                {rules.map((rule, index) => (
-                  <div key={rule.id || index} className="rounded-lg border border-slate-200/70 bg-white/70 p-3 text-sm dark:border-slate-800/70 dark:bg-slate-900/50">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-slate-900 dark:text-white">{rule.name || `Rule ${index + 1}`}</p>
-                        <p className="text-slate-500 dark:text-slate-400">
-                          {rule.direction} • {rule.action} • {rule.protocols?.join(', ') || 'any'}
-                        </p>
+
+              {/* Rules List */}
+              <div className="rounded-xl border border-slate-200/70 bg-white/80 p-5 dark:border-slate-800/70 dark:bg-slate-900/60">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-white">Rules overview</h3>
+                  <Badge variant="secondary">{rules.length} rules</Badge>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {rules.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                      No rules loaded yet.
+                    </div>
+                  )}
+                  {rules.map((rule, index) => (
+                    <div key={rule.id || index} className="rounded-lg border border-slate-200/70 bg-white/70 p-3 text-sm dark:border-slate-800/70 dark:bg-slate-900/50">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-slate-900 dark:text-white">{rule.name || `Rule ${index + 1}`}</p>
+                          <p className="text-slate-500 dark:text-slate-400">
+                            {rule.direction} • {rule.action} • {rule.protocols?.join(', ') || 'any'}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveRule(rule.id || `rule-${index}`)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          Remove
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveRule(rule.id || `rule-${index}`)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        Remove
-                      </Button>
+                      <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                        {rule.source_ranges?.join(', ') || 'No source'} → {rule.destination_ranges?.join(', ') || 'No destination'}
+                      </div>
                     </div>
-                    <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      {rule.source_ranges?.join(', ') || 'No source'} → {rule.destination_ranges?.join(', ') || 'No destination'}
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           </TabsContent>

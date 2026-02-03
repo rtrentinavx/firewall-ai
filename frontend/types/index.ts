@@ -11,6 +11,9 @@ export interface ApiResponse<T> {
   message?: string;
   similar_issues?: T;
   providers?: T;
+  rules?: T;
+  count?: number;
+  directory?: string;
 }
 export type CloudProvider = 'gcp' | 'azure' | 'aviatrix' | 'cisco' | 'palo_alto';
 

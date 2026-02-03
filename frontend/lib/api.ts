@@ -106,6 +106,30 @@ export const auditApi = {
   healthCheck: async (): Promise<any> => {
     const response: AxiosResponse<any> = await api.get('/health');
     return response.data;
+  },
+
+  // Parse Terraform content
+  parseTerraform: async (content: string, cloudProvider: string = 'aviatrix'): Promise<FirewallRule[]> => {
+    const response: AxiosResponse<ApiResponse<FirewallRule[]>> = await api.post('/terraform/parse', {
+      content,
+      cloud_provider: cloudProvider
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to parse Terraform');
+    }
+    return response.data.rules || [];
+  },
+
+  // Parse Terraform directory
+  parseTerraformDirectory: async (path: string, cloudProvider: string = 'aviatrix'): Promise<FirewallRule[]> => {
+    const response: AxiosResponse<ApiResponse<FirewallRule[]>> = await api.post('/terraform/parse-directory', {
+      path,
+      cloud_provider: cloudProvider
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to parse Terraform directory');
+    }
+    return response.data.rules || [];
   }
 };
 
