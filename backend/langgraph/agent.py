@@ -13,6 +13,7 @@ from models.firewall_rule import FirewallRule, AuditResult
 from normalization.engine import NormalizationEngine
 from caching.context_cache import ContextCache
 from caching.semantic_cache import SemanticCache
+from langgraph.graph import END, StateGraph
 
 logger = logging.getLogger(__name__)
 
