@@ -39,9 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move CKV_GCP_62 skip inside logs bucket resource block
 - Bump google-cloud-aiplatform for langchain-google-vertexai
 - Bump google-cloud-storage for langchain-google-vertexai
+- Resolve langchain/langsmith conflict for langgraph
 
 ### 📚 Documentation
 
+- Update CHANGELOG.md
 - Update CHANGELOG.md
 - Update CHANGELOG.md
 - Update CHANGELOG.md
