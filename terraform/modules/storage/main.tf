@@ -24,7 +24,8 @@ variable "labels" {
   type = map(string)
 }
 
-# Logs bucket for access logging
+# Logs bucket for access logging (destination for other buckets' logging)
+# checkov:skip=CKV_GCP_62:This bucket is the log destination; logging would require a separate audit bucket
 resource "google_storage_bucket" "logs" {
   name          = "${var.project_id}-logs-${var.resource_suffix}"
   location      = var.region
@@ -33,6 +34,10 @@ resource "google_storage_bucket" "logs" {
 
   uniform_bucket_level_access = true
   public_access_prevention    = "enforced"
+
+  versioning {
+    enabled = true
+  }
 
   lifecycle_rule {
     condition {

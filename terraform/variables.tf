@@ -147,12 +147,6 @@ variable "enable_shadow_mode" {
   default     = true
 }
 
-variable "enable_cloud_armor" {
-  description = "Enable Cloud Armor DDoS protection"
-  type        = bool
-  default     = true
-}
-
 variable "enable_vpc_connector" {
   description = "Enable Serverless VPC Access"
   type        = bool
