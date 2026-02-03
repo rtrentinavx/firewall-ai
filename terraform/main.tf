@@ -150,12 +150,12 @@ module "networking" {
 
   count = var.enable_vpc_connector ? 1 : 0
 
-  project_id      = var.project_id
-  region          = var.region
-  vpc_name        = var.vpc_name
-  subnet_name     = var.subnet_name
-  connector_name  = var.connector_name
-  ip_cidr_range   = var.ip_cidr_range
+  project_id     = var.project_id
+  region         = var.region
+  vpc_name       = var.vpc_name
+  subnet_name    = var.subnet_name
+  connector_name = var.connector_name
+  ip_cidr_range  = var.ip_cidr_range
 
   depends_on = [google_project_service.required_apis]
 }
@@ -163,23 +163,23 @@ module "networking" {
 module "cloud_run" {
   source = "./modules/cloud-run"
 
-  project_id              = var.project_id
-  region                  = var.region
-  service_account_email   = google_service_account.firewall_auditor.email
-  backend_image           = replace(var.backend_image, "PROJECT_ID", var.project_id)
-  frontend_image          = replace(var.frontend_image, "PROJECT_ID", var.project_id)
-  backend_cpu             = var.backend_cpu
-  backend_memory          = var.backend_memory
-  frontend_cpu            = var.frontend_cpu
-  frontend_memory         = var.frontend_memory
-  max_backend_instances   = var.max_backend_instances
-  max_frontend_instances  = var.max_frontend_instances
-  enable_shadow_mode      = var.enable_shadow_mode
-  enable_cloud_armor      = var.enable_cloud_armor
-  vpc_connector_id        = var.enable_vpc_connector ? module.networking[0].vpc_connector_id : null
-  gemini_secret_id        = module.secrets.gemini_api_key_secret_id
-  azure_credentials_id    = module.secrets.azure_credentials_secret_id
-  labels                  = local.common_labels
+  project_id             = var.project_id
+  region                 = var.region
+  service_account_email  = google_service_account.firewall_auditor.email
+  backend_image          = replace(var.backend_image, "PROJECT_ID", var.project_id)
+  frontend_image         = replace(var.frontend_image, "PROJECT_ID", var.project_id)
+  backend_cpu            = var.backend_cpu
+  backend_memory         = var.backend_memory
+  frontend_cpu           = var.frontend_cpu
+  frontend_memory        = var.frontend_memory
+  max_backend_instances  = var.max_backend_instances
+  max_frontend_instances = var.max_frontend_instances
+  enable_shadow_mode     = var.enable_shadow_mode
+  enable_cloud_armor     = var.enable_cloud_armor
+  vpc_connector_id       = var.enable_vpc_connector ? module.networking[0].vpc_connector_id : null
+  gemini_secret_id       = module.secrets.gemini_api_key_secret_id
+  azure_credentials_id   = module.secrets.azure_credentials_secret_id
+  labels                 = local.common_labels
 
   depends_on = [
     google_project_service.required_apis,
@@ -206,9 +206,9 @@ module "scheduler" {
 module "monitoring" {
   source = "./modules/monitoring"
 
-  project_id      = var.project_id
-  alert_email     = var.alert_email
-  backend_service = module.cloud_run.backend_service_name
+  project_id       = var.project_id
+  alert_email      = var.alert_email
+  backend_service  = module.cloud_run.backend_service_name
   frontend_service = module.cloud_run.frontend_service_name
 
   depends_on = [

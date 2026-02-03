@@ -37,13 +37,13 @@ resource "local_file" "vector_search_config" {
   content = jsonencode({
     contentsDeltaUri = "gs://${var.bucket_name}/embeddings/"
     config = {
-      dimensions                 = 768
+      dimensions                = 768
       approximateNeighborsCount = 10
       distanceMeasureType       = "DOT_PRODUCT_DISTANCE"
       algorithmConfig = {
         treeAhConfig = {
-          leafNodeEmbeddingCount      = 1000
-          leafNodesToSearchPercent    = 10
+          leafNodeEmbeddingCount   = 1000
+          leafNodesToSearchPercent = 10
         }
       }
     }

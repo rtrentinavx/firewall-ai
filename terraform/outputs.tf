@@ -40,7 +40,7 @@ output "firestore_database" {
 
 output "next_steps" {
   description = "Next steps after infrastructure deployment"
-  value = <<-EOT
+  value       = <<-EOT
   
   🎉 Infrastructure deployed successfully!
   
@@ -107,9 +107,9 @@ output "next_steps" {
 output "deployment_commands" {
   description = "Commands to deploy application"
   value = {
-    build_backend = "gcloud builds submit --tag ${replace(var.backend_image, "PROJECT_ID", var.project_id)} ./backend --project ${var.project_id}"
-    build_frontend = "gcloud builds submit --tag ${replace(var.frontend_image, "PROJECT_ID", var.project_id)} ./frontend --project ${var.project_id}"
-    update_backend = "gcloud run services update firewall-ai-backend --image ${replace(var.backend_image, "PROJECT_ID", var.project_id)} --region ${var.region} --project ${var.project_id}"
+    build_backend   = "gcloud builds submit --tag ${replace(var.backend_image, "PROJECT_ID", var.project_id)} ./backend --project ${var.project_id}"
+    build_frontend  = "gcloud builds submit --tag ${replace(var.frontend_image, "PROJECT_ID", var.project_id)} ./frontend --project ${var.project_id}"
+    update_backend  = "gcloud run services update firewall-ai-backend --image ${replace(var.backend_image, "PROJECT_ID", var.project_id)} --region ${var.region} --project ${var.project_id}"
     update_frontend = "gcloud run services update firewall-ai-frontend --image ${replace(var.frontend_image, "PROJECT_ID", var.project_id)} --region ${var.region} --project ${var.project_id}"
   }
 }
@@ -121,7 +121,7 @@ output "github_actions_sa_email" {
 
 output "github_actions_setup" {
   description = "Instructions to set up GitHub Actions"
-  value = <<-EOT
+  value       = <<-EOT
   
   GitHub Actions Setup:
   
