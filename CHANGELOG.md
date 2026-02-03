@@ -28,9 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Move tflint config to terraform directory
 - Improve terraform security posture
+- Update langchain-community version to resolve dependency conflict
+- Use docker buildx with --load flag for image building
 
 ### 📚 Documentation
 
+- Update CHANGELOG.md
 - Update CHANGELOG.md
 - Update CHANGELOG.md
 
