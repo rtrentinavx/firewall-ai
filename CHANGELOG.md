@@ -33,9 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Use docker buildx with --load flag for image building
 - Format docker buildx commands as single line
 - Restore corrupted frontend build command with proper path
+- Pin langchain-community to 0.0.20 to resolve langsmith conflict
 
 ### 📚 Documentation
 
+- Update CHANGELOG.md
 - Update CHANGELOG.md
 - Update CHANGELOG.md
 - Update CHANGELOG.md
