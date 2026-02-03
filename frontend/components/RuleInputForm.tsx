@@ -75,7 +75,7 @@ export default function RuleInputForm({ onAddRule, onAddMultipleRules, provider 
     setError('');
   };
 
-  const handleParseTerraform = async () => {
+  const handleValidateAndImport = async () => {
     if (!terraformContent.trim()) {
       setError('Please paste Terraform code');
       return;
@@ -86,48 +86,50 @@ export default function RuleInputForm({ onAddRule, onAddMultipleRules, provider 
     setValidationResult(null);
 
     try {
+      // Step 1: Validate with AI
+      setIsValidating(true);
+      const validation = await auditApi.validateTerraform(terraformContent, provider);
+      setValidationResult(validation);
+      setIsValidating(false);
+
+      // Check for critical errors
+      if (validation.syntax_errors && validation.syntax_errors.length > 0) {
+        setError('Critical syntax errors found. Please fix them before importing.');
+        setIsParsingTerraform(false);
+        return;
+      }
+
+      // Show warnings but allow to proceed
+      if (validation.security_issues && validation.security_issues.length > 0) {
+        // Continue with import but show warnings
+        console.warn('Security issues found:', validation.security_issues);
+      }
+
+      // Step 2: Parse and import rules
       const rules = await auditApi.parseTerraform(terraformContent, provider);
       
       if (rules.length === 0) {
         setError('No firewall rules found in Terraform code');
+        setIsParsingTerraform(false);
         return;
       }
 
+      // Step 3: Import the rules
       if (onAddMultipleRules) {
         onAddMultipleRules(rules);
       } else {
         rules.forEach(rule => onAddRule(rule));
       }
       
+      // Success - clear form
       setTerraformContent('');
+      setValidationResult(null);
       setError('');
+      
     } catch (err: any) {
-      setError(err.message || 'Failed to parse Terraform code');
+      setError(err.message || 'Failed to validate and import Terraform code');
     } finally {
       setIsParsingTerraform(false);
-    }
-  };
-
-  const handleValidateTerraform = async () => {
-    if (!terraformContent.trim()) {
-      setError('Please paste Terraform code');
-      return;
-    }
-
-    setIsValidating(true);
-    setError('');
-    setValidationResult(null);
-
-    try {
-      const validation = await auditApi.validateTerraform(terraformContent, provider);
-      setValidationResult(validation);
-      
-      if (!validation.valid) {
-        setError('Terraform validation found issues - see details below');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Failed to validate Terraform code');
-    } finally {
       setIsValidating(false);
     }
   };
@@ -279,46 +281,85 @@ export default function RuleInputForm({ onAddRule, onAddMultipleRules, provider 
             onChange={(e) => {
               setTerraformContent(e.target.value);
               setValidationResult(null);
+              setError('');
             }}
-            placeholder={`resource "google_compute_firewall" "allow_http" {\n  name    = "allow-http"\n  network = "default"\n  \n  allow {\n    protocol = "tcp"\n    ports    = ["80", "443"]\n  }\n  \n  source_ranges = ["0.0.0.0/0"]\n}`}
+            placeholder={`resource "aviatrix_dcf_ruleset" "production" {\n  name = "Production Rules"\n  \n  rules {\n    name = "allow-web"\n    action = "PERMIT"\n    protocol = "TCP"\n    src_smart_groups = ["uuid-1"]\n    dst_smart_groups = ["uuid-2"]\n    port_ranges {\n      lo = 443\n      hi = 443\n    }\n  }\n}`}
             className="font-mono text-sm min-h-[300px]"
           />
           <p className="text-xs text-muted-foreground">
-            Paste your Terraform HCL code. AI will intelligently parse and validate the configuration.
+            Paste your Terraform HCL code. AI will automatically validate and extract firewall rules.
           </p>
         </div>
 
-        {validationResult && (
+        {/* Validation/Import Progress */}
+        {(isValidating || isParsingTerraform) && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/20">
+            <div className="flex items-center gap-2 text-sm">
+              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+              <span className="font-medium">
+                {isValidating && !isParsingTerraform && 'Step 1/2: AI is validating your Terraform code...'}
+                {isParsingTerraform && !isValidating && 'Step 2/2: Extracting firewall rules...'}
+                {isValidating && isParsingTerraform && 'Processing...'}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Validation Results */}
+        {validationResult && !isParsingTerraform && (
           <div className={`rounded-lg p-4 text-sm ${
-            validationResult.valid ? 'bg-green-50 dark:bg-green-950/20' : 'bg-yellow-50 dark:bg-yellow-950/20'
+            validationResult.syntax_errors?.length > 0 
+              ? 'bg-red-50 border border-red-200 dark:bg-red-950/20 dark:border-red-800' 
+              : validationResult.security_issues?.length > 0 
+                ? 'bg-yellow-50 border border-yellow-200 dark:bg-yellow-950/20 dark:border-yellow-800'
+                : 'bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-800'
           }`}>
-            <p className="font-medium mb-2">
-              {validationResult.valid ? '✅ Validation Passed' : '⚠️ Validation Issues Found'}
-            </p>
+            <div className="flex items-start gap-2 mb-2">
+              <span className="text-lg">
+                {validationResult.syntax_errors?.length > 0 ? '❌' : 
+                 validationResult.security_issues?.length > 0 ? '⚠️' : '✅'}
+              </span>
+              <div className="flex-1">
+                <p className="font-semibold">
+                  {validationResult.syntax_errors?.length > 0 ? 'Syntax Errors Found' :
+                   validationResult.security_issues?.length > 0 ? 'Security Issues Detected' :
+                   'Validation Passed - Importing Rules'}
+                </p>
+              </div>
+            </div>
+            
             {validationResult.syntax_errors?.length > 0 && (
-              <div className="mb-2">
-                <p className="font-medium text-red-600 dark:text-red-400">Syntax Errors:</p>
-                <ul className="list-disc list-inside">
+              <div className="mt-3 space-y-1">
+                <p className="font-medium text-red-700 dark:text-red-300">Critical Errors:</p>
+                <ul className="list-disc list-inside space-y-1 text-red-600 dark:text-red-400">
                   {validationResult.syntax_errors.map((err: string, idx: number) => (
                     <li key={idx}>{err}</li>
                   ))}
                 </ul>
+                <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+                  Please fix these errors before importing.
+                </p>
               </div>
             )}
-            {validationResult.security_issues?.length > 0 && (
-              <div className="mb-2">
-                <p className="font-medium text-orange-600 dark:text-orange-400">Security Issues:</p>
-                <ul className="list-disc list-inside">
+            
+            {validationResult.security_issues?.length > 0 && !validationResult.syntax_errors?.length && (
+              <div className="mt-3 space-y-1">
+                <p className="font-medium text-orange-700 dark:text-orange-300">Security Warnings:</p>
+                <ul className="list-disc list-inside space-y-1 text-orange-600 dark:text-orange-400">
                   {validationResult.security_issues.map((issue: string, idx: number) => (
                     <li key={idx}>{issue}</li>
                   ))}
                 </ul>
+                <p className="mt-2 text-xs text-orange-600 dark:text-orange-400">
+                  Proceeding with import (warnings will not block).
+                </p>
               </div>
             )}
+            
             {validationResult.recommendations?.length > 0 && (
-              <div>
-                <p className="font-medium text-blue-600 dark:text-blue-400">Recommendations:</p>
-                <ul className="list-disc list-inside">
+              <div className="mt-3 space-y-1">
+                <p className="font-medium text-blue-700 dark:text-blue-300">💡 Recommendations:</p>
+                <ul className="list-disc list-inside space-y-1 text-blue-600 dark:text-blue-400 text-xs">
                   {validationResult.recommendations.map((rec: string, idx: number) => (
                     <li key={idx}>{rec}</li>
                   ))}
@@ -328,43 +369,25 @@ export default function RuleInputForm({ onAddRule, onAddMultipleRules, provider 
           </div>
         )}
 
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400 font-medium">{error}</p>}
 
-        <div className="flex gap-2">
-          <Button 
-            onClick={handleValidateTerraform} 
-            disabled={isValidating || !terraformContent.trim()}
-            variant="outline"
-            className="flex-1"
-          >
-            {isValidating ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Validating...
-              </>
-            ) : (
-              'Validate with AI'
-            )}
-          </Button>
-          
-          <Button 
-            onClick={handleParseTerraform} 
-            disabled={isParsingTerraform || !terraformContent.trim()}
-            className="flex-1"
-          >
-            {isParsingTerraform ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Parsing...
-              </>
-            ) : (
-              <>
-                <FileCode className="mr-2 h-4 w-4" />
-                Parse & Import
-              </>
-            )}
-          </Button>
-        </div>
+        <Button 
+          onClick={handleValidateAndImport} 
+          disabled={isParsingTerraform || isValidating || !terraformContent.trim()}
+          className="w-full"
+        >
+          {isParsingTerraform || isValidating ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              {isValidating ? 'Validating...' : 'Importing...'}
+            </>
+          ) : (
+            <>
+              <FileCode className="mr-2 h-4 w-4" />
+              AI Validate & Import Rules
+            </>
+          )}
+        </Button>
       </TabsContent>
 
       <TabsContent value="directory" className="space-y-4 mt-4">
