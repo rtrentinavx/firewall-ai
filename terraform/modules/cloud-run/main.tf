@@ -69,7 +69,7 @@ variable "labels" {
 
 # Backend Cloud Run Service
 resource "google_cloud_run_v2_service" "backend" {
-  name     = "firewall-auditor-backend"
+  name     = "firewall-ai-backend"
   location = var.region
   project  = var.project_id
 
@@ -92,6 +92,8 @@ resource "google_cloud_run_v2_service" "backend" {
     timeout = "300s"
 
     containers {
+      # Use gcr.io/cloudrun/hello as initial placeholder image
+      # GitHub Actions will update this with actual backend image
       image = var.backend_image
 
       resources {
@@ -191,7 +193,7 @@ resource "google_cloud_run_v2_service_iam_member" "backend_public" {
 
 # Frontend Cloud Run Service
 resource "google_cloud_run_v2_service" "frontend" {
-  name     = "firewall-auditor-frontend"
+  name     = "firewall-ai-frontend"
   location = var.region
   project  = var.project_id
 
@@ -221,11 +223,6 @@ resource "google_cloud_run_v2_service" "frontend" {
       env {
         name  = "NEXT_PUBLIC_API_URL"
         value = google_cloud_run_v2_service.backend.uri
-      }
-
-      env {
-        name  = "PORT"
-        value = "8080"
       }
 
       env {

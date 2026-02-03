@@ -42,27 +42,64 @@ output "next_steps" {
   description = "Next steps after infrastructure deployment"
   value = <<-EOT
   
-  ✅ Infrastructure deployed successfully!
+  🎉 Infrastructure deployed successfully!
   
-  📋 Next Steps:
+  📋 NEXT STEPS:
   
-  1. Access your application:
-     Frontend: ${module.cloud_run.frontend_url}
-     Backend:  ${module.cloud_run.backend_url}
+  1️⃣  Set up GitHub Actions for automated deployments:
   
-  2. Build and deploy application code:
-     gcloud builds submit --tag ${replace(var.backend_image, "PROJECT_ID", var.project_id)} ./backend --project ${var.project_id}
-     gcloud builds submit --tag ${replace(var.frontend_image, "PROJECT_ID", var.project_id)} ./frontend --project ${var.project_id}
+     a. Create service account key:
+        gcloud iam service-accounts keys create github-actions-key.json \
+          --iam-account=${google_service_account.github_actions.email} \
+          --project=${var.project_id}
   
-  3. Update Cloud Run services with new images:
-     gcloud run services update firewall-auditor-backend --image ${replace(var.backend_image, "PROJECT_ID", var.project_id)} --region ${var.region} --project ${var.project_id}
-     gcloud run services update firewall-auditor-frontend --image ${replace(var.frontend_image, "PROJECT_ID", var.project_id)} --region ${var.region} --project ${var.project_id}
+     b. Add GitHub Secrets (Settings → Secrets → Actions):
+        - GCP_SA_KEY: <contents of github-actions-key.json>
+        - GCP_PROJECT_ID: ${var.project_id}
+        - GCP_REGION: ${var.region}
+        - GEMINI_API_KEY: not-used-using-vertex-ai
   
-  4. View logs:
-     gcloud logging read "resource.type=cloud_run_revision" --limit 50 --project ${var.project_id}
+     c. Push code to trigger deployment:
+        git add .
+        git commit -m "Deploy firewall-ai"
+        git push origin main
   
-  5. Monitor application:
-     https://console.cloud.google.com/monitoring/dashboards?project=${var.project_id}
+  2️⃣  Configure local development (optional):
+  
+     a. Set environment variables:
+        export GOOGLE_CLOUD_PROJECT=${var.project_id}
+        gcloud config set project ${var.project_id}
+  
+     b. Create backend/.env:
+        echo "GOOGLE_CLOUD_PROJECT=${var.project_id}" > backend/.env
+  
+     c. Create frontend/.env.local:
+        echo "NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1" > frontend/.env.local
+  
+     d. Start development servers:
+        ./start-dev.sh
+  
+  3️⃣  Access your deployed services:
+  
+     🌐 Frontend: ${module.cloud_run.frontend_url}
+     🔧 Backend:  ${module.cloud_run.backend_url}
+     📊 Monitoring: https://console.cloud.google.com/monitoring/dashboards?project=${var.project_id}
+     📝 Logs: https://console.cloud.google.com/logs?project=${var.project_id}
+  
+  4️⃣  Manual deployment (if not using GitHub Actions):
+  
+     cd backend && gcloud builds submit --tag gcr.io/${var.project_id}/firewall-ai-backend:latest
+     cd ../frontend && gcloud builds submit --tag gcr.io/${var.project_id}/firewall-ai-frontend:latest
+     
+     gcloud run services update firewall-ai-backend \
+       --image gcr.io/${var.project_id}/firewall-ai-backend:latest \
+       --region ${var.region} --project ${var.project_id}
+     
+     gcloud run services update firewall-ai-frontend \
+       --image gcr.io/${var.project_id}/firewall-ai-frontend:latest \
+       --region ${var.region} --project ${var.project_id}
+  
+  ⚠️  Note: Services are currently running placeholder images. Deploy your code using step 1 or 4.
   
   EOT
 }
@@ -72,7 +109,36 @@ output "deployment_commands" {
   value = {
     build_backend = "gcloud builds submit --tag ${replace(var.backend_image, "PROJECT_ID", var.project_id)} ./backend --project ${var.project_id}"
     build_frontend = "gcloud builds submit --tag ${replace(var.frontend_image, "PROJECT_ID", var.project_id)} ./frontend --project ${var.project_id}"
-    update_backend = "gcloud run services update firewall-auditor-backend --image ${replace(var.backend_image, "PROJECT_ID", var.project_id)} --region ${var.region} --project ${var.project_id}"
-    update_frontend = "gcloud run services update firewall-auditor-frontend --image ${replace(var.frontend_image, "PROJECT_ID", var.project_id)} --region ${var.region} --project ${var.project_id}"
+    update_backend = "gcloud run services update firewall-ai-backend --image ${replace(var.backend_image, "PROJECT_ID", var.project_id)} --region ${var.region} --project ${var.project_id}"
+    update_frontend = "gcloud run services update firewall-ai-frontend --image ${replace(var.frontend_image, "PROJECT_ID", var.project_id)} --region ${var.region} --project ${var.project_id}"
   }
+}
+
+output "github_actions_sa_email" {
+  description = "GitHub Actions service account email"
+  value       = google_service_account.github_actions.email
+}
+
+output "github_actions_setup" {
+  description = "Instructions to set up GitHub Actions"
+  value = <<-EOT
+  
+  GitHub Actions Setup:
+  
+  1. Create a service account key:
+     gcloud iam service-accounts keys create github-actions-key.json \
+       --iam-account=${google_service_account.github_actions.email} \
+       --project=${var.project_id}
+  
+  2. Add this key as GitHub Secret 'GCP_SA_KEY':
+     cat github-actions-key.json
+  
+  3. Add other GitHub Secrets:
+     GCP_PROJECT_ID=${var.project_id}
+     GCP_REGION=${var.region}
+     GEMINI_API_KEY=not-used-using-vertex-ai
+  
+  4. Push to main branch to trigger deployment
+  
+  EOT
 }

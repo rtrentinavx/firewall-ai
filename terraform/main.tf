@@ -39,12 +39,39 @@ locals {
 
 # Service Account for Cloud Run services
 resource "google_service_account" "firewall_auditor" {
-  account_id   = "firewall-auditor-sa"
-  display_name = "Firewall Auditor Service Account"
-  description  = "Service account for Firewall Auditor application"
+  account_id   = "firewall-ai-sa"
+  display_name = "Firewall AI Service Account"
+  description  = "Service account for Firewall AI application"
   project      = var.project_id
 
   depends_on = [google_project_service.required_apis]
+}
+
+# Service Account for GitHub Actions CI/CD
+resource "google_service_account" "github_actions" {
+  account_id   = "github-actions"
+  display_name = "GitHub Actions"
+  description  = "Service account for GitHub Actions CI/CD pipeline"
+  project      = var.project_id
+
+  depends_on = [google_project_service.required_apis]
+}
+
+# IAM Roles for GitHub Actions Service Account
+resource "google_project_iam_member" "github_actions_roles" {
+  for_each = toset([
+    "roles/run.admin",
+    "roles/storage.admin",
+    "roles/cloudbuild.builds.editor",
+    "roles/iam.serviceAccountUser",
+    "roles/artifactregistry.admin",
+    "roles/compute.admin",
+    "roles/secretmanager.admin"
+  ])
+
+  project = var.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.github_actions.email}"
 }
 
 # IAM Roles for Service Account
@@ -87,8 +114,12 @@ module "secrets" {
   azure_client_id       = var.azure_client_id
   azure_client_secret   = var.azure_client_secret
   slack_webhook_url     = var.slack_webhook_url
+  service_account_email = google_service_account.firewall_auditor.email
 
-  depends_on = [google_project_service.required_apis]
+  depends_on = [
+    google_project_service.required_apis,
+    google_service_account.firewall_auditor
+  ]
 }
 
 module "firestore" {
@@ -152,7 +183,8 @@ module "cloud_run" {
 
   depends_on = [
     google_project_service.required_apis,
-    module.secrets
+    module.secrets,
+    google_project_iam_member.service_account_roles
   ]
 }
 

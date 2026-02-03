@@ -37,6 +37,11 @@ variable "slack_webhook_url" {
   default   = ""
 }
 
+variable "service_account_email" {
+  type        = string
+  description = "Service account email that needs access to secrets"
+}
+
 # Gemini API Key
 resource "google_secret_manager_secret" "gemini_api_key" {
   secret_id = "gemini-api-key"
@@ -50,6 +55,13 @@ resource "google_secret_manager_secret" "gemini_api_key" {
 resource "google_secret_manager_secret_version" "gemini_api_key" {
   secret      = google_secret_manager_secret.gemini_api_key.id
   secret_data = var.gemini_api_key
+}
+
+# IAM binding to allow service account to access gemini-api-key secret
+resource "google_secret_manager_secret_iam_member" "gemini_api_key_access" {
+  secret_id = google_secret_manager_secret.gemini_api_key.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${var.service_account_email}"
 }
 
 # Azure Credentials (if provided)

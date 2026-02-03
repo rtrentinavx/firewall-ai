@@ -6,7 +6,7 @@ variable "project_id" {
 variable "project_name" {
   description = "Human-readable project name"
   type        = string
-  default     = "Firewall Auditor"
+  default     = "Firewall AI"
 }
 
 variable "region" {
@@ -29,15 +29,15 @@ variable "org_id" {
 
 # Application Configuration
 variable "backend_image" {
-  description = "Docker image for backend (will be built by Cloud Build)"
+  description = "Docker image for backend (GitHub Actions will update this)"
   type        = string
-  default     = "gcr.io/PROJECT_ID/firewall-auditor-backend:latest"
+  default     = "gcr.io/cloudrun/hello"
 }
 
 variable "frontend_image" {
-  description = "Docker image for frontend (will be built by Cloud Build)"
+  description = "Docker image for frontend (GitHub Actions will update this)"
   type        = string
-  default     = "gcr.io/PROJECT_ID/firewall-auditor-frontend:latest"
+  default     = "gcr.io/cloudrun/hello"
 }
 
 variable "backend_cpu" {
@@ -176,7 +176,7 @@ variable "labels" {
   description = "Labels to apply to all resources"
   type        = map(string)
   default = {
-    application = "firewall-auditor"
+    application = "firewall-ai"
     managed-by  = "terraform"
   }
 }
