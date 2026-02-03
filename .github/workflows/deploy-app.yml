@@ -40,10 +40,15 @@ jobs:
         run: |
           gcloud auth configure-docker gcr.io
 
-      - name: Validate required env
+      - name: Set env (trim secrets; avoids invalid reference from trailing newline)
+        env:
+          RAW_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          RAW_REGION: ${{ secrets.GCP_REGION }}
         run: |
-          if [ -z "${{ env.GCP_PROJECT_ID }}" ]; then
-            echo "::error::GCP_PROJECT_ID secret is not set"
+          echo "GCP_PROJECT_ID=$(printf '%s' "$RAW_PROJECT_ID" | tr -d '\n\r' | xargs)" >> $GITHUB_ENV
+          echo "GCP_REGION=$(printf '%s' "$RAW_REGION" | tr -d '\n\r' | xargs)" >> $GITHUB_ENV
+          if [ -z "$GCP_PROJECT_ID" ]; then
+            echo "::error::GCP_PROJECT_ID secret is not set or empty"
             exit 1
           fi
 
