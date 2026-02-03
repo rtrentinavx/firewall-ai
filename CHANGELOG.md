@@ -36,9 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pin langchain-community to 0.0.20 to resolve langsmith conflict
 - Trim GCP_PROJECT_ID/GCP_REGION to fix invalid Docker tag
 - Tflint unused var + Checkov GCP policy fixes
+- Move CKV_GCP_62 skip inside logs bucket resource block
 
 ### 📚 Documentation
 
+- Update CHANGELOG.md
 - Update CHANGELOG.md
 - Update CHANGELOG.md
 - Update CHANGELOG.md
