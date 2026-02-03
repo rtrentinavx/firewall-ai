@@ -9,7 +9,7 @@ gunicorn==21.2.0
 langgraph==0.0.32
 langchain==0.1.5
 langchain-google-vertexai==0.1.2
-langchain-community==0.0.13
+langchain-community==0.0.38
 
 # Google Cloud and Vertex AI
 google-cloud-aiplatform==1.39.0
