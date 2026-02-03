@@ -42,25 +42,13 @@ jobs:
 
       - name: Build Backend Image
         run: |
-          docker buildx build --load \
-            -t gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-backend:latest \
-            -t gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-backend:${{ github.sha }} \
-            ./backend
+          docker buildx build --load -t gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-backend:latest -t gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-backend:${{ github.sha }} ./backend
           docker push gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-backend:latest
           docker push gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-backend:${{ github.sha }}
 
       - name: Build Frontend Image
         run: |
-          docker buildx build --load \
-            -t gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-frontend:latest \
-            -t gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-frontend:${{ github.sha }} \
-            ./frontend
-          docker push gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-frontend:latest
-          docker push gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-frontend:${{ github.sha }}
-
-      - name: Deploy Backend to Cloud Run
-        run: |
-          gcloud run services update firewall-ai-backend \
+          docker buildx build --load -t gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-frontend:latest -t gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-frontend:${{ github.sha }}cloud run services update firewall-ai-backend \
             --image gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-backend:latest \
             --region ${{ env.GCP_REGION }} \
             --project ${{ env.GCP_PROJECT_ID }}
