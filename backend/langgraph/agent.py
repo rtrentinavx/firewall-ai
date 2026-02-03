@@ -16,6 +16,24 @@ from caching.semantic_cache import SemanticCache
 
 logger = logging.getLogger(__name__)
 
+
+def _get_vertex_llm():
+    """Initialize Vertex AI chat model when credentials and project are available."""
+    try:
+        from langchain_google_vertexai import ChatVertexAI
+        import os
+        if not os.environ.get("GOOGLE_CLOUD_PROJECT"):
+            logger.warning("Vertex AI: GOOGLE_CLOUD_PROJECT not set")
+            return None
+        return ChatVertexAI(
+            model_name="gemini-1.5-pro",
+            temperature=0.1,
+            max_output_tokens=4096,
+        )
+    except Exception as e:
+        logger.warning("Vertex AI not available: %s", e)
+        return None
+
 class AuditState(BaseModel):
     """State object for the audit workflow"""
     rules: List[FirewallRule] = []
@@ -31,18 +49,18 @@ class FirewallAuditAgent:
     """Main agent orchestrating the firewall audit workflow using LangGraph"""
 
     def __init__(self):
-        # Temporarily disable LLM integration to avoid pandas compatibility issues
-        # self.llm = VertexAI(
-        #     model_name="gemini-1.5-pro",
-        #     temperature=0.1,
-        #     max_tokens=4096
-        # )
+        self.llm = _get_vertex_llm()
+        self.vertex_available = self.llm is not None
+        if self.vertex_available:
+            logger.info("Firewall audit agent: Vertex AI (Gemini) enabled")
+        else:
+            logger.info("Firewall audit agent: running without Vertex AI (mock/cache only)")
 
         self.normalization_engine = NormalizationEngine()
         self.context_cache = ContextCache()
         self.semantic_cache = SemanticCache()
 
-        # Build the audit workflow graph
+        # Build the audit workflow graph (None until full node implementations exist)
         self.workflow = self._build_workflow()
 
     def _build_workflow(self):
