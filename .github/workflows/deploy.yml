@@ -22,8 +22,15 @@ on:
 env:
   TF_VERSION: '1.6.0'
   TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+  TF_VAR_region: ${{ secrets.GCP_REGION }}
   TF_VAR_billing_account: ${{ secrets.GCP_BILLING_ACCOUNT }}
   TF_VAR_org_id: ${{ secrets.GCP_ORG_ID }}
+  TF_VAR_gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+  TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+  TF_VAR_vpc_name: firewall-ai-vpc
+  TF_VAR_subnet_name: firewall-ai-subnet
+  TF_VAR_connector_name: firewall-ai-connector
+  TF_VAR_ip_cidr_range: 10.8.0.0/28
   GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
 
 jobs:
@@ -58,7 +65,7 @@ jobs:
         working-directory: terraform
 
       - name: Terraform Plan
-        run: terraform plan -var-file=environments/dev/terraform.tfvars -out=tfplan
+        run: terraform plan -out=tfplan
         working-directory: terraform
 
       - name: Terraform Apply
@@ -175,7 +182,7 @@ jobs:
       - name: Terraform Plan
         id: plan
         run: |
-          terraform plan -var-file=terraform.tfvars -out=tfplan -no-color
+          terraform plan -out=tfplan -no-color
           terraform show -json tfplan > tfplan.json
         working-directory: terraform
         continue-on-error: true
