@@ -13,7 +13,7 @@ export default function Home() {
         <section className="mt-2">
           <Tabs defaultValue="workspace" className="w-full">
             <TabsList className="grid w-full grid-cols-2 rounded-xl border border-slate-200/70 bg-white/80 p-1 shadow-sm dark:border-slate-800/70 dark:bg-slate-900/60">
-              <TabsTrigger value="workspace">Firewall audit workspace</TabsTrigger>
+              <TabsTrigger value="workspace">Intelligence workspace</TabsTrigger>
               <TabsTrigger value="admin">System control center</TabsTrigger>
             </TabsList>
             <TabsContent value="workspace" className="pt-4">

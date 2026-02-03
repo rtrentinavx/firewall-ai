@@ -273,7 +273,10 @@ def register_routes(
             # Use AI agent if available and requested
             if use_ai:
                 logger.info(f"Using AI agent to parse Terraform for {cloud_provider}")
+                logger.debug(f"Terraform content length: {len(terraform_content)} chars")
                 result = await terraform_agent.parse_terraform(terraform_content, cloud_provider)
+                
+                logger.info(f"Parsing result: success={result.success}, rules_count={len(result.rules)}, errors={result.errors}")
                 
                 if not result.success:
                     return jsonify({

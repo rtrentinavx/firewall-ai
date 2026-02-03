@@ -283,7 +283,7 @@ export default function RuleInputForm({ onAddRule, onAddMultipleRules, provider 
               setValidationResult(null);
               setError('');
             }}
-            placeholder={`resource "aviatrix_dcf_ruleset" "production" {\n  name = "Production Rules"\n  \n  rules {\n    name = "allow-web"\n    action = "PERMIT"\n    protocol = "TCP"\n    src_smart_groups = ["uuid-1"]\n    dst_smart_groups = ["uuid-2"]\n    port_ranges {\n      lo = 443\n      hi = 443\n    }\n  }\n}`}
+            placeholder="Paste your Terraform firewall rules here..."
             className="font-mono text-sm min-h-[300px]"
           />
           <p className="text-xs text-muted-foreground">

@@ -20,7 +20,12 @@ def parse_terraform_content(content: str, cloud_provider: str = 'aviatrix') -> L
     Returns:
         List of parsed firewall rules
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     rules = []
+    
+    logger.info(f"Parsing Terraform content for provider: {cloud_provider}, content length: {len(content)}")
     
     # Parse based on provider
     if cloud_provider == 'gcp':
@@ -34,6 +39,8 @@ def parse_terraform_content(content: str, cloud_provider: str = 'aviatrix') -> L
     else:
         # Try generic parsing
         rules.extend(_parse_generic_firewall_rules(content, cloud_provider))
+    
+    logger.info(f"Parsed {len(rules)} rules from Terraform content")
     
     return rules
 
@@ -140,23 +147,64 @@ def _parse_azure_nsg_rules(content: str) -> List[Dict[str, Any]]:
 
 def _parse_aviatrix_rules(content: str) -> List[Dict[str, Any]]:
     """Parse Aviatrix firewall rules from Terraform."""
+    import logging
+    logger = logging.getLogger(__name__)
     rules = []
     
     # Pattern for aviatrix_dcf_ruleset resources (new DCF format)
-    dcf_pattern = r'resource\s+"aviatrix_dcf_ruleset"\s+"([^"]+)"\s*\{([^}]+(?:\{[^}]*(?:\{[^}]*\}[^}]*)*\}[^}]*)*)\}'
-    dcf_matches = re.finditer(dcf_pattern, content, re.DOTALL)
+    # Use a simpler pattern and extract the resource body by counting braces
+    resource_pattern = r'resource\s+"aviatrix_dcf_ruleset"\s+"([^"]+)"\s*\{'
+    resource_matches = list(re.finditer(resource_pattern, content, re.DOTALL))
     
-    for match in dcf_matches:
-        resource_name = match.group(1)
-        resource_body = match.group(2)
+    logger.info(f"Found {len(resource_matches)} aviatrix_dcf_ruleset resources")
+    
+    for res_match in resource_matches:
+        resource_name = res_match.group(1)
+        start_pos = res_match.end()
+        
+        # Find matching closing brace by counting
+        brace_count = 1
+        pos = start_pos
+        while pos < len(content) and brace_count > 0:
+            if content[pos] == '{':
+                brace_count += 1
+            elif content[pos] == '}':
+                brace_count -= 1
+            pos += 1
+        
+        if brace_count != 0:
+            logger.warning(f"Could not find matching braces for resource {resource_name}")
+            continue
+            
+        resource_body = content[start_pos:pos-1]
+        logger.info(f"Found aviatrix_dcf_ruleset resource: {resource_name}, body length: {len(resource_body)}")
+        
         ruleset_name = _extract_value(resource_body, 'name') or resource_name
         
-        # Extract rules blocks from DCF ruleset
-        rules_pattern = r'rules\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}'
-        rules_matches = re.finditer(rules_pattern, resource_body, re.DOTALL)
+        # Extract rules blocks from DCF ruleset using brace counting
+        rules_pattern = r'rules\s*\{'
+        rules_matches = list(re.finditer(rules_pattern, resource_body, re.DOTALL))
+        logger.info(f"Found {len(rules_matches)} rules blocks in resource {resource_name}")
         
-        for rule_match in rules_matches:
-            rule_body = rule_match.group(1)
+        for rule_match_idx, rule_match in enumerate(rules_matches):
+            rule_start = rule_match.end()
+            
+            # Find matching closing brace for this rules block
+            brace_count = 1
+            rule_pos = rule_start
+            while rule_pos < len(resource_body) and brace_count > 0:
+                if resource_body[rule_pos] == '{':
+                    brace_count += 1
+                elif resource_body[rule_pos] == '}':
+                    brace_count -= 1
+                rule_pos += 1
+            
+            if brace_count != 0:
+                logger.warning(f"Could not find matching braces for rules block {rule_match_idx}")
+                continue
+                
+            rule_body = resource_body[rule_start:rule_pos-1]
+            logger.debug(f"Extracted rule body length: {len(rule_body)}")
             
             # Extract action and map to standard format
             action_value = _extract_value(rule_body, 'action') or 'PERMIT'
@@ -179,7 +227,7 @@ def _parse_aviatrix_rules(content: str) -> List[Dict[str, Any]]:
             # Extract port ranges
             ports = _extract_dcf_port_ranges(rule_body)
             
-            rule_name = _extract_value(rule_body, 'name') or f'{ruleset_name}-rule'
+            rule_name = _extract_value(rule_body, 'name') or f'{ruleset_name}-rule-{rule_match_idx}'
             
             rule = {
                 'id': f'aviatrix-dcf-{resource_name}-{hash(rule_body) % 10000}',
