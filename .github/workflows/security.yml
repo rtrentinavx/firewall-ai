@@ -144,6 +144,7 @@ jobs:
   scorecard:
     name: "OpenSSF Scorecard"
     runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
     permissions:
       contents: read
       id-token: write
