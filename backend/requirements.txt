@@ -5,12 +5,11 @@ python-dotenv==1.0.0
 Werkzeug==2.3.7
 gunicorn==21.2.0
 
-# LangGraph and LangChain for agentic workflows
+# LangGraph and LangChain for agentic workflows (langchain 0.2+ uses langsmith>=0.1, matching langgraph/langchain-core)
 langgraph==0.0.32
-langchain==0.1.5
+langchain>=0.2.0,<0.3.0
 langchain-google-vertexai==0.1.2
-# Pin to 0.0.20: 0.0.24+ requires langsmith>=0.1, which conflicts with langchain 0.1.5 (langsmith<0.1)
-langchain-community==0.0.20
+langchain-community>=0.0.24,<0.1.0
 
 # Google Cloud and Vertex AI (>=1.44.0 required by langchain-google-vertexai 0.1.2)
 google-cloud-aiplatform>=1.44.0,<2.0.0
