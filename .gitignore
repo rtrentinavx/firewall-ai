@@ -71,3 +71,4 @@ pnpm-debug.log*
 *.a
 *.so
 *.dylib
+github-actions-key.json
