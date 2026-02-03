@@ -3,7 +3,7 @@ config {
   plugin_dir = "~/.tflint.d/plugins"
 
   # Enable modules
-  module = true
+  call_module_type = "all"
 }
 
 plugin "google" {
