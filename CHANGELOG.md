@@ -41,9 +41,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bump google-cloud-storage for langchain-google-vertexai
 - Resolve langchain/langsmith conflict for langgraph
 - Align langchain stack; enable Vertex in audit agent
+- Pin langchain-community to 0.2.x for langchain-core 0.2 compatibility
 
 ### 📚 Documentation
 
+- Update CHANGELOG.md
 - Update CHANGELOG.md
 - Update CHANGELOG.md
 - Update CHANGELOG.md
