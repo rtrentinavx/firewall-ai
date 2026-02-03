@@ -1,3 +1,13 @@
+terraform {
+  required_version = ">= 1.6.0"
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.0"
+    }
+  }
+}
+
 variable "project_id" {
   type = string
 }
@@ -7,10 +17,6 @@ variable "alert_email" {
 }
 
 variable "backend_service" {
-  type = string
-}
-
-variable "frontend_service" {
   type = string
 }
 

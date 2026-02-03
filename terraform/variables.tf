@@ -3,12 +3,6 @@ variable "project_id" {
   type        = string
 }
 
-variable "project_name" {
-  description = "Human-readable project name"
-  type        = string
-  default     = "Firewall AI"
-}
-
 variable "region" {
   description = "GCP region for resources"
   type        = string
@@ -19,12 +13,6 @@ variable "environment" {
   description = "Environment name (dev, staging, prod)"
   type        = string
   default     = "prod"
-}
-
-variable "org_id" {
-  description = "GCP Organization ID (optional)"
-  type        = string
-  default     = ""
 }
 
 # Application Configuration

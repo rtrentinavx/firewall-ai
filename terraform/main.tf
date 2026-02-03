@@ -136,10 +136,9 @@ module "firestore" {
 module "vertex_ai" {
   source = "./modules/vertex-ai"
 
-  project_id      = var.project_id
-  region          = var.region
-  bucket_name     = module.storage.embeddings_bucket_name
-  resource_suffix = local.resource_suffix
+  project_id  = var.project_id
+  region      = var.region
+  bucket_name = module.storage.embeddings_bucket_name
 
   depends_on = [
     google_project_service.required_apis,
@@ -177,7 +176,6 @@ module "cloud_run" {
   max_backend_instances  = var.max_backend_instances
   max_frontend_instances = var.max_frontend_instances
   enable_shadow_mode     = var.enable_shadow_mode
-  enable_cloud_armor     = var.enable_cloud_armor
   vpc_connector_id       = var.enable_vpc_connector ? module.networking[0].vpc_connector_id : null
   gemini_secret_id       = module.secrets.gemini_api_key_secret_id
   azure_credentials_id   = module.secrets.azure_credentials_secret_id
@@ -208,10 +206,9 @@ module "scheduler" {
 module "monitoring" {
   source = "./modules/monitoring"
 
-  project_id       = var.project_id
-  alert_email      = var.alert_email
-  backend_service  = module.cloud_run.backend_service_name
-  frontend_service = module.cloud_run.frontend_service_name
+  project_id      = var.project_id
+  alert_email     = var.alert_email
+  backend_service = module.cloud_run.backend_service_name
 
   depends_on = [
     google_project_service.required_apis,

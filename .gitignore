@@ -30,6 +30,7 @@ build/
 *.tsbuildinfo
 venv/
 .venv/
+.venv-ci/
 env/
 **/venv/
 **/.venv/

@@ -1,3 +1,13 @@
+terraform {
+  required_version = ">= 1.6.0"
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.0"
+    }
+  }
+}
+
 variable "project_id" {
   type = string
 }
@@ -43,10 +53,6 @@ variable "max_frontend_instances" {
 }
 
 variable "enable_shadow_mode" {
-  type = bool
-}
-
-variable "enable_cloud_armor" {
   type = bool
 }
 

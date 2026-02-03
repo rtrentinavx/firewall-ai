@@ -40,17 +40,26 @@ jobs:
         run: |
           gcloud auth configure-docker gcr.io
 
+      - name: Validate required env
+        run: |
+          if [ -z "${{ env.GCP_PROJECT_ID }}" ]; then
+            echo "::error::GCP_PROJECT_ID secret is not set"
+            exit 1
+          fi
+
       - name: Build Backend Image
         run: |
-          docker buildx build --load -t gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-backend:latest -t gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-backend:${{ github.sha }} ./backend
-          docker push gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-backend:latest
-          docker push gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-backend:${{ github.sha }}
+          IMAGE_BASE="gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-backend"
+          docker buildx build --load -t "${IMAGE_BASE}:latest" -t "${IMAGE_BASE}:${{ github.sha }}" ./backend
+          docker push "${IMAGE_BASE}:latest"
+          docker push "${IMAGE_BASE}:${{ github.sha }}"
 
       - name: Build Frontend Image
         run: |
-          docker buildx build --load -t gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-frontend:latest -t gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-frontend:${{ github.sha }} ./frontend
-          docker push gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-frontend:latest
-          docker push gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-frontend:${{ github.sha }}
+          IMAGE_BASE="gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-frontend"
+          docker buildx build --load -t "${IMAGE_BASE}:latest" -t "${IMAGE_BASE}:${{ github.sha }}" ./frontend
+          docker push "${IMAGE_BASE}:latest"
+          docker push "${IMAGE_BASE}:${{ github.sha }}"
 
       - name: Deploy Backend to Cloud Run
         run: |

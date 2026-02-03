@@ -12,3 +12,6 @@ safety>=2.3.0
 # Additional testing utilities
 faker>=18.0.0
 responses>=0.23.0
+
+# IaC / Terraform (matches terraform-validator CI - Checkov)
+checkov>=3.0.0
