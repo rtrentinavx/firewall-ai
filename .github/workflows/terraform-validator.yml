@@ -1,5 +1,6 @@
 name: Infrastructure CI
 
+on:
   push:
     branches:
       - main
