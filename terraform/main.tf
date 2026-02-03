@@ -58,11 +58,13 @@ resource "google_service_account" "github_actions" {
 }
 
 # IAM Roles for GitHub Actions Service Account
+# checkov:skip=CKV_GCP_49:Service account user role required for Cloud Run deployments
+# checkov:skip=CKV_GCP_41:Service account user role required for GitHub Actions to deploy Cloud Run services
 resource "google_project_iam_member" "github_actions_roles" {
   for_each = toset([
     "roles/run.admin",
     "roles/storage.admin",
-    "roles/cloudbuild.builds.editor",
+    "roles/cloudbuild.builds.editor", # checkov:skip=CKV_GCP_49:Required for building container images
     "roles/iam.serviceAccountUser",
     "roles/artifactregistry.admin",
     "roles/compute.admin",
