@@ -25,8 +25,8 @@ variable "labels" {
 }
 
 # Logs bucket for access logging (destination for other buckets' logging)
-# checkov:skip=CKV_GCP_62:This bucket is the log destination; logging would require a separate audit bucket
 resource "google_storage_bucket" "logs" {
+  # checkov:skip=CKV_GCP_62:This bucket is the log destination; logging would require a separate audit bucket
   name          = "${var.project_id}-logs-${var.resource_suffix}"
   location      = var.region
   project       = var.project_id
