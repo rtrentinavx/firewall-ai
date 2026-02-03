@@ -30,9 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improve terraform security posture
 - Update langchain-community version to resolve dependency conflict
 - Use docker buildx with --load flag for image building
+- Format docker buildx commands as single line
 
 ### 📚 Documentation
 
+- Update CHANGELOG.md
 - Update CHANGELOG.md
 - Update CHANGELOG.md
 - Update CHANGELOG.md
