@@ -30,6 +30,8 @@ export default function RuleInputForm({ onAddRule, onAddMultipleRules, provider 
   const [terraformContent, setTerraformContent] = useState('');
   const [terraformPath, setTerraformPath] = useState('');
   const [isParsingTerraform, setIsParsingTerraform] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<any>(null);
   
   const [error, setError] = useState('');
 
@@ -81,6 +83,7 @@ export default function RuleInputForm({ onAddRule, onAddMultipleRules, provider 
 
     setIsParsingTerraform(true);
     setError('');
+    setValidationResult(null);
 
     try {
       const rules = await auditApi.parseTerraform(terraformContent, provider);
@@ -102,6 +105,30 @@ export default function RuleInputForm({ onAddRule, onAddMultipleRules, provider 
       setError(err.message || 'Failed to parse Terraform code');
     } finally {
       setIsParsingTerraform(false);
+    }
+  };
+
+  const handleValidateTerraform = async () => {
+    if (!terraformContent.trim()) {
+      setError('Please paste Terraform code');
+      return;
+    }
+
+    setIsValidating(true);
+    setError('');
+    setValidationResult(null);
+
+    try {
+      const validation = await auditApi.validateTerraform(terraformContent, provider);
+      setValidationResult(validation);
+      
+      if (!validation.valid) {
+        setError('Terraform validation found issues - see details below');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to validate Terraform code');
+    } finally {
+      setIsValidating(false);
     }
   };
 
@@ -249,34 +276,95 @@ export default function RuleInputForm({ onAddRule, onAddMultipleRules, provider 
           <Textarea
             id="terraform-content"
             value={terraformContent}
-            onChange={(e) => setTerraformContent(e.target.value)}
+            onChange={(e) => {
+              setTerraformContent(e.target.value);
+              setValidationResult(null);
+            }}
             placeholder={`resource "google_compute_firewall" "allow_http" {\n  name    = "allow-http"\n  network = "default"\n  \n  allow {\n    protocol = "tcp"\n    ports    = ["80", "443"]\n  }\n  \n  source_ranges = ["0.0.0.0/0"]\n}`}
             className="font-mono text-sm min-h-[300px]"
           />
           <p className="text-xs text-muted-foreground">
-            Paste your Terraform HCL code containing firewall rules (supports GCP, Azure, Aviatrix, Cisco, Palo Alto)
+            Paste your Terraform HCL code. AI will intelligently parse and validate the configuration.
           </p>
         </div>
 
+        {validationResult && (
+          <div className={`rounded-lg p-4 text-sm ${
+            validationResult.valid ? 'bg-green-50 dark:bg-green-950/20' : 'bg-yellow-50 dark:bg-yellow-950/20'
+          }`}>
+            <p className="font-medium mb-2">
+              {validationResult.valid ? '✅ Validation Passed' : '⚠️ Validation Issues Found'}
+            </p>
+            {validationResult.syntax_errors?.length > 0 && (
+              <div className="mb-2">
+                <p className="font-medium text-red-600 dark:text-red-400">Syntax Errors:</p>
+                <ul className="list-disc list-inside">
+                  {validationResult.syntax_errors.map((err: string, idx: number) => (
+                    <li key={idx}>{err}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {validationResult.security_issues?.length > 0 && (
+              <div className="mb-2">
+                <p className="font-medium text-orange-600 dark:text-orange-400">Security Issues:</p>
+                <ul className="list-disc list-inside">
+                  {validationResult.security_issues.map((issue: string, idx: number) => (
+                    <li key={idx}>{issue}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {validationResult.recommendations?.length > 0 && (
+              <div>
+                <p className="font-medium text-blue-600 dark:text-blue-400">Recommendations:</p>
+                <ul className="list-disc list-inside">
+                  {validationResult.recommendations.map((rec: string, idx: number) => (
+                    <li key={idx}>{rec}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-        <Button 
-          onClick={handleParseTerraform} 
-          disabled={isParsingTerraform || !terraformContent.trim()}
-          className="w-full"
-        >
-          {isParsingTerraform ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Parsing...
-            </>
-          ) : (
-            <>
-              <FileCode className="mr-2 h-4 w-4" />
-              Parse & Import Rules
-            </>
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={handleValidateTerraform} 
+            disabled={isValidating || !terraformContent.trim()}
+            variant="outline"
+            className="flex-1"
+          >
+            {isValidating ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Validating...
+              </>
+            ) : (
+              'Validate with AI'
+            )}
+          </Button>
+          
+          <Button 
+            onClick={handleParseTerraform} 
+            disabled={isParsingTerraform || !terraformContent.trim()}
+            className="flex-1"
+          >
+            {isParsingTerraform ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Parsing...
+              </>
+            ) : (
+              <>
+                <FileCode className="mr-2 h-4 w-4" />
+                Parse & Import
+              </>
+            )}
+          </Button>
+        </div>
       </TabsContent>
 
       <TabsContent value="directory" className="space-y-4 mt-4">

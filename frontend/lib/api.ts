@@ -112,12 +112,25 @@ export const auditApi = {
   parseTerraform: async (content: string, cloudProvider: string = 'aviatrix'): Promise<FirewallRule[]> => {
     const response: AxiosResponse<ApiResponse<FirewallRule[]>> = await api.post('/terraform/parse', {
       content,
-      cloud_provider: cloudProvider
+      cloud_provider: cloudProvider,
+      use_ai: true
     });
     if (!response.data.success) {
       throw new Error(response.data.error || 'Failed to parse Terraform');
     }
     return response.data.rules || [];
+  },
+
+  // Validate Terraform content
+  validateTerraform: async (content: string, cloudProvider: string = 'aviatrix'): Promise<any> => {
+    const response: AxiosResponse<ApiResponse<any>> = await api.post('/terraform/validate', {
+      content,
+      cloud_provider: cloudProvider
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to validate Terraform');
+    }
+    return response.data.validation;
   },
 
   // Parse Terraform directory

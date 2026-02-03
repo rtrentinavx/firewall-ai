@@ -13,6 +13,7 @@ import json
 
 from models.firewall_rule import FirewallRule, AuditResult, CloudProvider
 from langgraph.agent import FirewallAuditAgent
+from langgraph.terraform_agent import terraform_agent
 from normalization.engine import NormalizationEngine
 from caching.context_cache import ContextCache
 from caching.semantic_cache import SemanticCache
@@ -253,8 +254,62 @@ def register_routes(
         })
 
     @api.route('/api/v1/terraform/parse', methods=['POST'])
-    def parse_terraform():
-        """Parse Terraform HCL content and extract firewall rules"""
+    async def parse_terraform():
+        """Parse Terraform HCL content and extract firewall rules using AI agent"""
+        
+        try:
+            data = request.get_json()
+            
+            if not data:
+                return jsonify({'error': 'No data provided'}), 400
+            
+            terraform_content = data.get('content', '')
+            cloud_provider = data.get('cloud_provider', 'aviatrix')
+            use_ai = data.get('use_ai', True)  # Enable AI by default
+            
+            if not terraform_content:
+                return jsonify({'error': 'No Terraform content provided'}), 400
+            
+            # Use AI agent if available and requested
+            if use_ai:
+                logger.info(f"Using AI agent to parse Terraform for {cloud_provider}")
+                result = await terraform_agent.parse_terraform(terraform_content, cloud_provider)
+                
+                if not result.success:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Terraform parsing failed',
+                        'errors': result.errors,
+                        'warnings': result.warnings
+                    }), 400
+                
+                return jsonify({
+                    'success': True,
+                    'rules': result.rules,
+                    'count': len(result.rules),
+                    'warnings': result.warnings,
+                    'metadata': result.metadata,
+                    'parser': 'ai' if terraform_agent.model_available else 'regex'
+                })
+            else:
+                # Use regex parser directly
+                logger.info(f"Using regex parser for {cloud_provider}")
+                rules = parse_terraform_content(terraform_content, cloud_provider)
+                
+                return jsonify({
+                    'success': True,
+                    'rules': rules,
+                    'count': len(rules),
+                    'parser': 'regex'
+                })
+        
+        except Exception as e:
+            logger.error(f"Terraform parsing failed: {e}")
+            return jsonify({'error': 'Failed to parse Terraform', 'details': str(e)}), 500
+
+    @api.route('/api/v1/terraform/validate', methods=['POST'])
+    async def validate_terraform():
+        """Validate Terraform content using AI agent"""
         
         try:
             data = request.get_json()
@@ -268,18 +323,20 @@ def register_routes(
             if not terraform_content:
                 return jsonify({'error': 'No Terraform content provided'}), 400
             
-            # Parse the content
-            rules = parse_terraform_content(terraform_content, cloud_provider)
+            # Validate using AI agent
+            validation_result = await terraform_agent.validate_terraform(
+                terraform_content,
+                cloud_provider
+            )
             
             return jsonify({
                 'success': True,
-                'rules': rules,
-                'count': len(rules)
+                'validation': validation_result
             })
         
         except Exception as e:
-            logger.error(f"Terraform parsing failed: {e}")
-            return jsonify({'error': 'Failed to parse Terraform', 'details': str(e)}), 500
+            logger.error(f"Terraform validation failed: {e}")
+            return jsonify({'error': 'Failed to validate Terraform', 'details': str(e)}), 500
 
     @api.route('/api/v1/terraform/parse-directory', methods=['POST'])
     def parse_terraform_dir():

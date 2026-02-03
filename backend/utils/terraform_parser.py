@@ -142,12 +142,76 @@ def _parse_aviatrix_rules(content: str) -> List[Dict[str, Any]]:
     """Parse Aviatrix firewall rules from Terraform."""
     rules = []
     
-    # Pattern for aviatrix_firewall resources
-    pattern = r'resource\s+"aviatrix_firewall(?:_policy)?"\s+"([^"]+)"\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}'
+    # Pattern for aviatrix_dcf_ruleset resources (new DCF format)
+    dcf_pattern = r'resource\s+"aviatrix_dcf_ruleset"\s+"([^"]+)"\s*\{([^}]+(?:\{[^}]*(?:\{[^}]*\}[^}]*)*\}[^}]*)*)\}'
+    dcf_matches = re.finditer(dcf_pattern, content, re.DOTALL)
     
-    matches = re.finditer(pattern, content, re.DOTALL)
+    for match in dcf_matches:
+        resource_name = match.group(1)
+        resource_body = match.group(2)
+        ruleset_name = _extract_value(resource_body, 'name') or resource_name
+        
+        # Extract rules blocks from DCF ruleset
+        rules_pattern = r'rules\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}'
+        rules_matches = re.finditer(rules_pattern, resource_body, re.DOTALL)
+        
+        for rule_match in rules_matches:
+            rule_body = rule_match.group(1)
+            
+            # Extract action and map to standard format
+            action_value = _extract_value(rule_body, 'action') or 'PERMIT'
+            action_map = {
+                'PERMIT': 'allow',
+                'DENY': 'deny',
+                'DEEP_PACKET_INSPECTION_PERMIT': 'allow',
+                'INTRUSION_DETECTION_PERMIT': 'allow'
+            }
+            action = action_map.get(action_value, 'allow')
+            
+            # Extract protocol
+            protocol_value = _extract_value(rule_body, 'protocol') or 'ANY'
+            protocol = protocol_value.lower() if protocol_value != 'ANY' else 'all'
+            
+            # Extract smart groups (UUIDs)
+            src_smart_groups = _extract_list(rule_body, 'src_smart_groups')
+            dst_smart_groups = _extract_list(rule_body, 'dst_smart_groups')
+            
+            # Extract port ranges
+            ports = _extract_dcf_port_ranges(rule_body)
+            
+            rule_name = _extract_value(rule_body, 'name') or f'{ruleset_name}-rule'
+            
+            rule = {
+                'id': f'aviatrix-dcf-{resource_name}-{hash(rule_body) % 10000}',
+                'name': rule_name,
+                'description': f'Ruleset: {ruleset_name}, Action: {action_value}, Protocol: {protocol_value}',
+                'cloud_provider': 'aviatrix',
+                'direction': 'ingress',
+                'action': action,
+                'priority': int(_extract_value(rule_body, 'priority') or 0),
+                'source_ranges': src_smart_groups if src_smart_groups else ['Any'],
+                'destination_ranges': dst_smart_groups if dst_smart_groups else ['Any'],
+                'protocols': [protocol],
+                'ports': ports,
+                'logging_enabled': _extract_value(rule_body, 'logging') == 'true',
+                'provider_specific': {
+                    'ruleset_name': ruleset_name,
+                    'watch': _extract_value(rule_body, 'watch') == 'true',
+                    'web_groups': _extract_list(rule_body, 'web_groups'),
+                    'flow_app_requirement': _extract_value(rule_body, 'flow_app_requirement'),
+                    'decrypt_policy': _extract_value(rule_body, 'decrypt_policy'),
+                    'tls_profile': _extract_value(rule_body, 'tls_profile'),
+                    'log_profile': _extract_value(rule_body, 'log_profile'),
+                }
+            }
+            
+            rules.append(rule)
     
-    for match in matches:
+    # Also parse legacy aviatrix_firewall resources
+    legacy_pattern = r'resource\s+"aviatrix_firewall(?:_policy)?"\s+"([^"]+)"\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}'
+    legacy_matches = re.finditer(legacy_pattern, content, re.DOTALL)
+    
+    for match in legacy_matches:
         resource_name = match.group(1)
         resource_body = match.group(2)
         
@@ -163,7 +227,7 @@ def _parse_aviatrix_rules(content: str) -> List[Dict[str, Any]]:
                 'name': _extract_value(policy_body, 'description') or f'{resource_name}-policy',
                 'description': _extract_value(policy_body, 'description'),
                 'cloud_provider': 'aviatrix',
-                'direction': 'ingress',  # Aviatrix typically handles both
+                'direction': 'ingress',
                 'action': _extract_value(policy_body, 'action') or 'allow',
                 'source_ranges': [_extract_value(policy_body, 'src_ip') or 'Any'],
                 'destination_ranges': [_extract_value(policy_body, 'dst_ip') or 'Any'],
@@ -287,11 +351,33 @@ def _extract_azure_ports(content: str) -> List[str]:
 
 
 def _extract_aviatrix_port(content: str) -> List[str]:
-    """Extract port from Aviatrix rule."""
+    """Extract port from Aviatrix legacy rule."""
     port = _extract_value(content, 'port')
     if port and port != '0-65535':
         return [port]
     return []
+
+
+def _extract_dcf_port_ranges(content: str) -> List[str]:
+    """Extract port ranges from Aviatrix DCF rule."""
+    ports = []
+    
+    # Look for port_ranges blocks
+    port_ranges_pattern = r'port_ranges\s*\{([^}]+)\}'
+    matches = re.finditer(port_ranges_pattern, content, re.DOTALL)
+    
+    for match in matches:
+        range_body = match.group(1)
+        lo = _extract_value(range_body, 'lo')
+        hi = _extract_value(range_body, 'hi')
+        
+        if lo:
+            if hi and hi != lo:
+                ports.append(f'{lo}-{hi}')
+            else:
+                ports.append(lo)
+    
+    return ports
 
 
 def _detect_direction(content: str) -> str:

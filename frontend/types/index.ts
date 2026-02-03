@@ -14,6 +14,11 @@ export interface ApiResponse<T> {
   rules?: T;
   count?: number;
   directory?: string;
+  validation?: any;
+  warnings?: string[];
+  errors?: string[];
+  metadata?: any;
+  parser?: string;
 }
 export type CloudProvider = 'gcp' | 'azure' | 'aviatrix' | 'cisco' | 'palo_alto';
 
