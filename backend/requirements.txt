@@ -17,7 +17,8 @@ google-cloud-aiplatform>=1.56.0,<2.0.0
 google-cloud-firestore==2.14.0
 google-cloud-storage>=2.17.0,<3.0.0
 google-cloud-secret-manager==2.17.0
-google-auth==2.23.4
+# >=2.47.0 required by google-cloud-aiplatform 1.131+
+google-auth>=2.47.0,<3.0.0
 
 # Data processing and validation
 pydantic==2.5.2
