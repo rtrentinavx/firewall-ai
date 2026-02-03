@@ -68,9 +68,10 @@ jobs:
 
       - name: TFLint Init
         run: tflint --init
+        working-directory: terraform
 
       - name: TFLint
-        run: tflint --recursive --config ../.tflint.hcl
+        run: tflint --recursive
         working-directory: terraform
 
   tfsec:
