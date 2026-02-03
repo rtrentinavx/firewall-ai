@@ -56,7 +56,7 @@ def register_routes(
 
     @api.before_request
     def require_basic_auth():
-        open_paths = {'/api/v1/health', '/api/v1/auth/login'}
+        open_paths = {'/api/v1/health', '/api/v1/health/services', '/api/v1/auth/login'}
         if request.path in open_paths:
             return None
         if not _is_authorized():
@@ -439,6 +439,73 @@ def register_routes(
             'version': '1.0.0',
             'components': components,
             'supported_providers': [CloudProvider.AVIATRIX.value]
+        })
+
+    @api.route('/api/v1/health/services', methods=['GET'])
+    def services_health_check():
+        """Check connectivity to all GCP services"""
+        import os
+        from google.cloud import firestore, storage, secretmanager
+        
+        services = {}
+        
+        # Check Firestore
+        try:
+            db = firestore.Client()
+            # Try to access a collection
+            db.collection('health_check').limit(1).get()
+            services['firestore'] = {'status': 'connected', 'message': 'Successfully connected to Firestore'}
+        except Exception as e:
+            services['firestore'] = {'status': 'error', 'message': str(e)}
+        
+        # Check Cloud Storage
+        try:
+            storage_client = storage.Client()
+            project_id = os.getenv('GOOGLE_CLOUD_PROJECT', 'rtrentin-01')
+            bucket_name = f"{project_id}-firewall-configs"
+            bucket = storage_client.bucket(bucket_name)
+            # Check if bucket exists
+            bucket.exists()
+            services['storage'] = {'status': 'connected', 'message': f'Successfully connected to bucket: {bucket_name}'}
+        except Exception as e:
+            services['storage'] = {'status': 'error', 'message': str(e)}
+        
+        # Check Secret Manager
+        try:
+            secrets_client = secretmanager.SecretManagerServiceClient()
+            project_id = os.getenv('GOOGLE_CLOUD_PROJECT', 'rtrentin-01')
+            # Try to access a secret (gemini-api-key)
+            name = f"projects/{project_id}/secrets/gemini-api-key/versions/latest"
+            response = secrets_client.access_secret_version(request={"name": name})
+            services['secret_manager'] = {'status': 'connected', 'message': 'Successfully accessed Secret Manager'}
+        except Exception as e:
+            services['secret_manager'] = {'status': 'error', 'message': str(e)}
+        
+        # Check Vertex AI (if configured)
+        try:
+            from langchain_google_vertexai import ChatVertexAI
+            project_id = os.getenv('GOOGLE_CLOUD_PROJECT')
+            if project_id:
+                llm = ChatVertexAI(
+                    model="gemini-1.5-flash",
+                    project=project_id,
+                    temperature=0
+                )
+                services['vertex_ai'] = {'status': 'connected', 'message': 'Vertex AI configured'}
+            else:
+                services['vertex_ai'] = {'status': 'not_configured', 'message': 'GOOGLE_CLOUD_PROJECT not set'}
+        except Exception as e:
+            services['vertex_ai'] = {'status': 'error', 'message': str(e)}
+        
+        # Overall status
+        error_count = sum(1 for s in services.values() if s['status'] == 'error')
+        overall = 'healthy' if error_count == 0 else 'degraded' if error_count < len(services) else 'unhealthy'
+        
+        return jsonify({
+            'status': overall,
+            'services': services,
+            'project_id': os.getenv('GOOGLE_CLOUD_PROJECT', 'not_set'),
+            'region': os.getenv('GCP_REGION', 'not_set')
         })
 
     # Register blueprint
