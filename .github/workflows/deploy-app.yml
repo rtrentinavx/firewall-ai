@@ -1,0 +1,91 @@
+name: Deploy Application
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/workflows/deploy-app.yml'
+  workflow_dispatch:
+
+env:
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ secrets.GCP_REGION }}
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy Application
+    runs-on: ubuntu-latest
+    if: "contains(github.event.head_commit.message, 'feat:') || contains(github.event.head_commit.message, 'fix:') || contains(github.event.head_commit.message, 'perf:') || contains(github.event.head_commit.message, 'refactor:') || github.event_name == 'workflow_dispatch'"
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for GCR
+        run: |
+          gcloud auth configure-docker gcr.io
+
+      - name: Build Backend Image
+        run: |
+          docker build -t gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-backend:latest \
+                       -t gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-backend:${{ github.sha }} \
+                       ./backend
+          docker push gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-backend:latest
+          docker push gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-backend:${{ github.sha }}
+
+      - name: Build Frontend Image
+        run: |
+          docker build -t gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-frontend:latest \
+                       -t gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-frontend:${{ github.sha }} \
+                       ./frontend
+          docker push gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-frontend:latest
+          docker push gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-frontend:${{ github.sha }}
+
+      - name: Deploy Backend to Cloud Run
+        run: |
+          gcloud run services update firewall-ai-backend \
+            --image gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-backend:latest \
+            --region ${{ env.GCP_REGION }} \
+            --project ${{ env.GCP_PROJECT_ID }}
+
+      - name: Deploy Frontend to Cloud Run
+        run: |
+          gcloud run services update firewall-ai-frontend \
+            --image gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-frontend:latest \
+            --region ${{ env.GCP_REGION }} \
+            --project ${{ env.GCP_PROJECT_ID }}
+
+      - name: Get Service URLs
+        id: urls
+        run: |
+          BACKEND_URL=$(gcloud run services describe firewall-ai-backend --region ${{ env.GCP_REGION }} --project ${{ env.GCP_PROJECT_ID }} --format 'value(status.url)')
+          FRONTEND_URL=$(gcloud run services describe firewall-ai-frontend --region ${{ env.GCP_REGION }} --project ${{ env.GCP_PROJECT_ID }} --format 'value(status.url)')
+          echo "backend_url=$BACKEND_URL" >> $GITHUB_OUTPUT
+          echo "frontend_url=$FRONTEND_URL" >> $GITHUB_OUTPUT
+
+      - name: Summary
+        run: |
+          echo "## Deployment Complete! 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Service URLs:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend**: ${{ steps.urls.outputs.frontend_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend**: ${{ steps.urls.outputs.backend_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Docker Images:" >> $GITHUB_STEP_SUMMARY
+          echo "- Backend: \`gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-backend:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Frontend: \`gcr.io/${{ env.GCP_PROJECT_ID }}/firewall-ai-frontend:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY

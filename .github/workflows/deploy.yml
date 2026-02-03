@@ -5,12 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'terraform/main.tf'
-      - 'terraform/variables.tf'
-      - 'terraform/outputs.tf'
-      - 'terraform/versions.tf'
-      - 'terraform/modules/**'
-      - 'terraform/environments/**'
+      - 'terraform/**'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:
     inputs:
