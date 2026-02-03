@@ -54,15 +54,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check for Dockerfiles
+        id: check_dockerfiles
+        run: |
+          echo "backend_exists=$([[ -f ./backend/Dockerfile ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "frontend_exists=$([[ -f ./frontend/Dockerfile ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+
       - name: Build backend image
         run: |
           docker build -t firewall-ai-backend ./backend
-        if: exists('./backend/Dockerfile')
+        if: steps.check_dockerfiles.outputs.backend_exists == 'true'
 
       - name: Build frontend image
         run: |
           docker build -t firewall-ai-frontend ./frontend
-        if: exists('./frontend/Dockerfile')
+        if: steps.check_dockerfiles.outputs.frontend_exists == 'true'
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
@@ -71,7 +77,7 @@ jobs:
           scan-ref: 'firewall-ai-backend,firewall-ai-frontend'
           format: 'sarif'
           output: 'trivy-results.sarif'
-        if: exists('./backend/Dockerfile') || exists('./frontend/Dockerfile')
+        if: steps.check_dockerfiles.outputs.backend_exists == 'true' || steps.check_dockerfiles.outputs.frontend_exists == 'true'
 
       - name: Upload Trivy scan results
         uses: github/codeql-action/upload-sarif@v3
