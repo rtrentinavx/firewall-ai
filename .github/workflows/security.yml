@@ -132,7 +132,7 @@ jobs:
           license-checker --json > licenses-node.json || true
 
       - name: Upload license reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: license-reports
           path: |

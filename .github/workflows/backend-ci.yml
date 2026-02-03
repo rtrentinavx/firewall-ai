@@ -94,7 +94,7 @@ jobs:
           safety check --output json > safety-results.json || true
 
       - name: Upload security results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: backend-security-results
           path: |
