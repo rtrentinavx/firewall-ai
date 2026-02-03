@@ -43,9 +43,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Align langchain stack; enable Vertex in audit agent
 - Pin langchain-community to 0.2.x for langchain-core 0.2 compatibility
 - Bump google-auth to >=2.47.0 for google-cloud-aiplatform compatibility
+- Add langgraph imports for StateGraph/END (fix flake8 F821)
 
 ### 📚 Documentation
 
+- Update CHANGELOG.md
 - Update CHANGELOG.md
 - Update CHANGELOG.md
 - Update CHANGELOG.md
