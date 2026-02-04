@@ -2,6 +2,9 @@
 REM Firewall AI Development Startup Script (Windows)
 REM Starts both backend and frontend services
 
+REM Change to repository root (scripts are in scripts/development/)
+cd /d "%~dp0\..\.."
+
 echo 🚀 Starting Firewall AI Development Environment
 echo =================================================
 

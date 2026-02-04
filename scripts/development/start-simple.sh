@@ -3,8 +3,9 @@
 # Simple Firewall AI Development Startup Script
 # Starts backend and frontend concurrently
 
-# Get the directory where this script is located
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Get the repository root directory (scripts are in scripts/development/)
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCRIPT_DIR="$REPO_ROOT"
 
 echo "🚀 Starting Firewall AI (Simple Mode)"
 echo "====================================="
