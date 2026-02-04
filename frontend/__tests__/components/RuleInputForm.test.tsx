@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import RuleInputForm from '@/components/RuleInputForm'
 import { auditApi } from '@/lib/api'
@@ -30,8 +30,8 @@ describe('RuleInputForm', () => {
   it('should render form with tabs', () => {
     render(<RuleInputForm {...defaultProps} />)
     
-    expect(screen.getByText(/manual entry/i)).toBeInTheDocument()
-    expect(screen.getByText(/terraform/i)).toBeInTheDocument()
+    expect(screen.getByText(/manual/i)).toBeInTheDocument()
+    expect(screen.getByText(/terraform code/i)).toBeInTheDocument()
   })
 
   it('should render manual entry form fields', () => {
@@ -47,7 +47,10 @@ describe('RuleInputForm', () => {
     render(<RuleInputForm {...defaultProps} />)
     
     const submitButton = screen.getByRole('button', { name: /add rule/i })
-    await userEvent.click(submitButton)
+    
+    await act(async () => {
+      await userEvent.click(submitButton)
+    })
     
     // Should show error for missing name
     await waitFor(() => {
@@ -61,8 +64,10 @@ describe('RuleInputForm', () => {
     const nameInput = screen.getByLabelText(/rule name/i)
     const submitButton = screen.getByRole('button', { name: /add rule/i })
     
-    await userEvent.type(nameInput, 'test-rule')
-    await userEvent.click(submitButton)
+    await act(async () => {
+      await userEvent.type(nameInput, 'test-rule')
+      await userEvent.click(submitButton)
+    })
     
     await waitFor(() => {
       expect(mockOnAddRule).toHaveBeenCalled()
@@ -76,12 +81,12 @@ describe('RuleInputForm', () => {
   it('should render Terraform tab content', async () => {
     render(<RuleInputForm {...defaultProps} />)
     
-    const terraformTab = screen.getByText(/terraform/i)
+    const terraformTab = screen.getByText(/terraform code/i)
     await userEvent.click(terraformTab)
     
     await waitFor(() => {
-      expect(screen.getByPlaceholderText(/paste terraform/i)).toBeInTheDocument()
-    })
+      expect(screen.getByPlaceholderText(/paste your terraform/i)).toBeInTheDocument()
+    }, { timeout: 3000 })
   })
 
   it('should parse Terraform content', async () => {
@@ -95,23 +100,39 @@ describe('RuleInputForm', () => {
       },
     ]
 
+    const mockValidation = {
+      valid: true,
+      syntax_errors: [],
+      security_issues: [],
+      recommendations: [],
+    }
+
+    ;(auditApi.validateTerraform as jest.Mock).mockResolvedValue(mockValidation)
     ;(auditApi.parseTerraform as jest.Mock).mockResolvedValue(mockRules)
 
     render(<RuleInputForm {...defaultProps} />)
     
-    const terraformTab = screen.getByText(/terraform/i)
-    await userEvent.click(terraformTab)
+    const terraformTab = screen.getByText(/terraform code/i)
+    await act(async () => {
+      await userEvent.click(terraformTab)
+    })
     
-    const textarea = await screen.findByPlaceholderText(/paste terraform/i)
-    await userEvent.type(textarea, 'resource "google_compute_firewall"')
+    const textarea = await screen.findByPlaceholderText(/paste your terraform/i)
     
-    const parseButton = screen.getByRole('button', { name: /parse terraform/i })
-    await userEvent.click(parseButton)
+    await act(async () => {
+      await userEvent.type(textarea, 'resource "google_compute_firewall"')
+    })
+    
+    const parseButton = screen.getByRole('button', { name: /import/i })
+    await act(async () => {
+      await userEvent.click(parseButton)
+    })
     
     await waitFor(() => {
+      expect(auditApi.validateTerraform).toHaveBeenCalled()
       expect(auditApi.parseTerraform).toHaveBeenCalled()
       expect(mockOnAddMultipleRules).toHaveBeenCalledWith(mockRules)
-    })
+    }, { timeout: 5000 })
   })
 
   it('should validate Terraform content', async () => {
@@ -124,14 +145,21 @@ describe('RuleInputForm', () => {
 
     render(<RuleInputForm {...defaultProps} />)
     
-    const terraformTab = screen.getByText(/terraform/i)
-    await userEvent.click(terraformTab)
+    const terraformTab = screen.getByText(/terraform code/i)
+    await act(async () => {
+      await userEvent.click(terraformTab)
+    })
     
-    const textarea = await screen.findByPlaceholderText(/paste terraform/i)
-    await userEvent.type(textarea, 'resource "google_compute_firewall"')
+    const textarea = await screen.findByPlaceholderText(/paste your terraform/i)
+    
+    await act(async () => {
+      await userEvent.type(textarea, 'resource "google_compute_firewall"')
+    })
     
     const validateButton = screen.getByRole('button', { name: /validate/i })
-    await userEvent.click(validateButton)
+    await act(async () => {
+      await userEvent.click(validateButton)
+    })
     
     await waitFor(() => {
       expect(auditApi.validateTerraform).toHaveBeenCalled()
@@ -144,14 +172,21 @@ describe('RuleInputForm', () => {
 
     render(<RuleInputForm {...defaultProps} />)
     
-    const terraformTab = screen.getByText(/terraform/i)
-    await userEvent.click(terraformTab)
+    const terraformTab = screen.getByText(/terraform code/i)
+    await act(async () => {
+      await userEvent.click(terraformTab)
+    })
     
-    const textarea = await screen.findByPlaceholderText(/paste terraform/i)
-    await userEvent.type(textarea, 'invalid terraform')
+    const textarea = await screen.findByPlaceholderText(/paste your terraform/i)
     
-    const parseButton = screen.getByRole('button', { name: /parse terraform/i })
-    await userEvent.click(parseButton)
+    await act(async () => {
+      await userEvent.type(textarea, 'invalid terraform')
+    })
+    
+    const parseButton = screen.getByRole('button', { name: /import/i })
+    await act(async () => {
+      await userEvent.click(parseButton)
+    })
     
     await waitFor(() => {
       expect(screen.getByText(new RegExp(errorMessage, 'i'))).toBeInTheDocument()

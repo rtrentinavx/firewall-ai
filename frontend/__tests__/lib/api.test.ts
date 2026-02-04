@@ -1,16 +1,41 @@
-import axios from 'axios'
 import { auditApi, utils } from '@/lib/api'
 import type { FirewallRule, AuditRequest } from '@/types'
 
-// Mock axios
-jest.mock('axios')
-const mockedAxios = axios as jest.Mocked<typeof axios>
+// Mock axios module
+let axiosMockInstance: any
+
+jest.mock('axios', () => {
+  const mockInstance = {
+    get: jest.fn(),
+    post: jest.fn(),
+    interceptors: {
+      request: {
+        use: jest.fn(),
+      },
+      response: {
+        use: jest.fn(),
+      },
+    },
+  }
+  
+  return {
+    __esModule: true,
+    default: {
+      create: jest.fn(() => mockInstance),
+    },
+  }
+})
 
 describe('auditApi', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     // Mock localStorage
     Storage.prototype.getItem = jest.fn(() => null)
+    // Get the mocked axios instance
+    const axios = require('axios')
+    axiosMockInstance = axios.default.create()
+    axiosMockInstance.get.mockClear()
+    axiosMockInstance.post.mockClear()
   })
 
   describe('auditRules', () => {
@@ -36,8 +61,7 @@ describe('auditApi', () => {
         },
       }
 
-      mockedAxios.create = jest.fn(() => mockedAxios as any)
-      mockedAxios.post = jest.fn().mockResolvedValue(mockResponse)
+      axiosMockInstance.post.mockResolvedValue(mockResponse)
 
       const result = await auditApi.auditRules(mockRequest)
       expect(result).toBeDefined()
@@ -58,8 +82,7 @@ describe('auditApi', () => {
         },
       }
 
-      mockedAxios.create = jest.fn(() => mockedAxios as any)
-      mockedAxios.post = jest.fn().mockResolvedValue(mockResponse)
+      axiosMockInstance.post.mockResolvedValue(mockResponse)
 
       await expect(auditApi.auditRules(mockRequest)).rejects.toThrow('Audit failed')
     })
@@ -90,8 +113,7 @@ describe('auditApi', () => {
         },
       }
 
-      mockedAxios.create = jest.fn(() => mockedAxios as any)
-      mockedAxios.post = jest.fn().mockResolvedValue(mockResponse)
+      axiosMockInstance.post.mockResolvedValue(mockResponse)
 
       const result = await auditApi.normalizeRules(mockRules)
       expect(result).toBeDefined()
@@ -109,8 +131,7 @@ describe('auditApi', () => {
         },
       }
 
-      mockedAxios.create = jest.fn(() => mockedAxios as any)
-      mockedAxios.get = jest.fn().mockResolvedValue(mockResponse)
+      axiosMockInstance.get.mockResolvedValue(mockResponse)
 
       const result = await auditApi.getCacheStats()
       expect(result).toBeDefined()
@@ -136,8 +157,7 @@ describe('auditApi', () => {
         },
       }
 
-      mockedAxios.create = jest.fn(() => mockedAxios as any)
-      mockedAxios.post = jest.fn().mockResolvedValue(mockResponse)
+      axiosMockInstance.post.mockResolvedValue(mockResponse)
 
       const result = await auditApi.parseTerraform('resource "google_compute_firewall"')
       expect(result).toBeDefined()

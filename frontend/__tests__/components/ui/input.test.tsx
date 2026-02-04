@@ -11,13 +11,13 @@ describe('Input Component', () => {
 
   it('should handle value changes', async () => {
     const handleChange = jest.fn()
-    render(<Input onChange={handleChange} />)
+    render(<Input onChange={handleChange} placeholder="Test input" />)
     
-    const input = screen.getByPlaceholderText('Enter text') || screen.getByRole('textbox', { hidden: true })
-    if (input) {
-      await userEvent.type(input, 'test')
-      expect(handleChange).toHaveBeenCalled()
-    }
+    const input = screen.getByPlaceholderText('Test input')
+    await userEvent.type(input, 'test')
+    
+    expect(handleChange).toHaveBeenCalled()
+    expect(input).toHaveValue('test')
   })
 
   it('should be disabled when disabled prop is true', () => {
