@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Use GitHub secrets for all terraform variables
 - Remove optional billing and org variables
 - Tflint fixes, dev tools script, deploy-app build context, remove unused vars
+- Add mypy --explicit-package-bases to fix duplicate module error
 
 ### ✨ Features
 
@@ -47,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 📚 Documentation
 
+- Update CHANGELOG.md
 - Update CHANGELOG.md
 - Update CHANGELOG.md
 - Update CHANGELOG.md
