@@ -57,29 +57,32 @@ class FirewallAuditAgent:
         # For now, return a mock workflow that doesn't use LangGraph
         # This allows the server to start while we resolve dependency issues
         return None
-        """Build the LangGraph workflow for firewall auditing"""
-
-        workflow = StateGraph(AuditState)
-
-        # Add nodes
-        workflow.add_node("ingest_and_normalize", self._ingest_and_normalize)
-        workflow.add_node("check_semantic_cache", self._check_semantic_cache)
-        workflow.add_node("analyze_intent", self._analyze_intent)
-        workflow.add_node("detect_violations", self._detect_violations)
-        workflow.add_node("generate_recommendations", self._generate_recommendations)
-        workflow.add_node("create_audit_result", self._create_audit_result)
-
-        # Define the workflow edges
-        workflow.set_entry_point("ingest_and_normalize")
-
-        workflow.add_edge("ingest_and_normalize", "check_semantic_cache")
-        workflow.add_edge("check_semantic_cache", "analyze_intent")
-        workflow.add_edge("analyze_intent", "detect_violations")
-        workflow.add_edge("detect_violations", "generate_recommendations")
-        workflow.add_edge("generate_recommendations", "create_audit_result")
-        workflow.add_edge("create_audit_result", END)
-
-        return workflow.compile()
+        # TODO: Re-enable LangGraph workflow once dependencies are resolved
+        # """Build the LangGraph workflow for firewall auditing"""
+        #
+        # from langgraph.graph import END, StateGraph
+        #
+        # workflow = StateGraph(AuditState)
+        #
+        # # Add nodes
+        # workflow.add_node("ingest_and_normalize", self._ingest_and_normalize)
+        # workflow.add_node("check_semantic_cache", self._check_semantic_cache)
+        # workflow.add_node("analyze_intent", self._analyze_intent)
+        # workflow.add_node("detect_violations", self._detect_violations)
+        # workflow.add_node("generate_recommendations", self._generate_recommendations)
+        # workflow.add_node("create_audit_result", self._create_audit_result)
+        #
+        # # Define the workflow edges
+        # workflow.set_entry_point("ingest_and_normalize")
+        #
+        # workflow.add_edge("ingest_and_normalize", "check_semantic_cache")
+        # workflow.add_edge("check_semantic_cache", "analyze_intent")
+        # workflow.add_edge("analyze_intent", "detect_violations")
+        # workflow.add_edge("detect_violations", "generate_recommendations")
+        # workflow.add_edge("generate_recommendations", "create_audit_result")
+        # workflow.add_edge("create_audit_result", END)
+        #
+        # return workflow.compile()
 
     async def audit_firewall_rules(
         self,
