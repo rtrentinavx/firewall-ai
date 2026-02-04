@@ -27,6 +27,7 @@ export default function FirewallAuditDashboard() {
   const [activeTab, setActiveTab] = useState('input');
   const [selectedProvider, setSelectedProvider] = useState<string>('aviatrix');
   const [useSampleData, setUseSampleData] = useState(false);
+  const [analyzedRules, setAnalyzedRules] = useState<FirewallRule[]>([]); // Store rules that were analyzed
   const cacheUtilization = cacheStats?.context_cache.utilization_percent;
   const semanticEntries = cacheStats?.semantic_cache.entries;
 
@@ -61,6 +62,9 @@ export default function FirewallAuditDashboard() {
 
     try {
       const analysisRules = useSampleData ? utils.generateSampleRules(selectedProvider || 'gcp') : rules;
+      
+      // Store the rules that were analyzed for Terraform generation
+      setAnalyzedRules(analysisRules);
 
       const request: AuditRequest = {
         rules: analysisRules,
@@ -402,7 +406,11 @@ export default function FirewallAuditDashboard() {
 
           <TabsContent value="results" className="pt-6">
             {analysisResult ? (
-              <AuditResults result={analysisResult} />
+              <AuditResults 
+                result={analysisResult} 
+                rules={analyzedRules}
+                provider={selectedProvider as CloudProvider}
+              />
             ) : (
               <div className="rounded-xl border border-dashed border-slate-200/70 p-10 text-center text-sm text-slate-500 dark:border-slate-800/70 dark:text-slate-400">
                 Run analysis to see security intelligence results.

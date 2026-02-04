@@ -189,6 +189,132 @@ export const utils = {
     return errors;
   },
 
+  // Generate Terraform code from firewall rules
+  generateTerraformCode: (rules: FirewallRule[], provider: CloudProvider = 'gcp'): string => {
+    if (rules.length === 0) {
+      return '# No rules to generate Terraform code for';
+    }
+
+    const terraformBlocks: string[] = [];
+
+    rules.forEach((rule, index) => {
+      const resourceName = rule.name.toLowerCase().replace(/[^a-z0-9]/g, '-') || `firewall-rule-${index + 1}`;
+      
+      if (provider === 'gcp') {
+        // GCP allows multiple allow/deny blocks for different protocols
+        const allowDenyBlocks: string[] = [];
+        
+        if (rule.protocols && rule.protocols.length > 0) {
+          rule.protocols.forEach((protocol, protoIdx) => {
+            const ports = rule.ports && rule.ports.length > protoIdx 
+              ? [rule.ports[protoIdx]] 
+              : (rule.ports && rule.ports.length > 0 ? rule.ports : []);
+            
+            allowDenyBlocks.push(`  ${rule.action === 'allow' ? 'allow' : 'deny'} {
+    protocol = "${protocol}"
+${ports.length > 0 ? `    ports    = [${ports.map(p => `"${p}"`).join(', ')}]` : ''}
+  }`);
+          });
+        } else {
+          // No protocols specified, use "all"
+          allowDenyBlocks.push(`  ${rule.action === 'allow' ? 'allow' : 'deny'} {
+    protocol = "all"
+  }`);
+        }
+
+        terraformBlocks.push(`resource "google_compute_firewall" "${resourceName}" {
+  name        = "${rule.name}"
+  description = "${rule.description || 'Firewall rule created via Firewall AI'}"
+  network     = "${rule.network || 'default'}"
+  direction   = "${rule.direction.toUpperCase()}"
+  priority    = ${rule.priority || 1000}
+${rule.disabled ? '  disabled = true' : ''}
+
+${allowDenyBlocks.join('\n\n')}
+
+${rule.source_ranges && rule.source_ranges.length > 0 
+  ? `  source_ranges = [${rule.source_ranges.map(r => `"${r}"`).join(', ')}]`
+  : ''}
+${rule.destination_ranges && rule.destination_ranges.length > 0 
+  ? `  destination_ranges = [${rule.destination_ranges.map(r => `"${r}"`).join(', ')}]`
+  : ''}
+${rule.source_tags && rule.source_tags.length > 0 
+  ? `  source_tags = [${rule.source_tags.map(t => `"${t}"`).join(', ')}]`
+  : ''}
+${rule.target_tags && rule.target_tags.length > 0 
+  ? `  target_tags = [${rule.target_tags.map(t => `"${t}"`).join(', ')}]`
+  : ''}
+${rule.logging_enabled ? '  enable_logging = true' : ''}
+}
+
+`);
+      } else if (provider === 'azure') {
+        terraformBlocks.push(`resource "azurerm_network_security_rule" "${resourceName}" {
+  name                        = "${rule.name}"
+  resource_group_name         = var.resource_group_name
+  network_security_group_name = var.network_security_group_name
+  priority                    = ${rule.priority || 100}
+  direction                   = "${rule.direction === 'ingress' ? 'Inbound' : 'Outbound'}"
+  access                      = "${rule.action === 'allow' ? 'Allow' : 'Deny'}"
+  protocol                    = "${rule.protocols && rule.protocols.length > 0 ? rule.protocols[0].toUpperCase() : '*'}"
+  
+${rule.source_ranges && rule.source_ranges.length > 0 
+  ? `  source_address_prefix      = "${rule.source_ranges[0]}"`
+  : '  source_address_prefix      = "*"'}
+${rule.destination_ranges && rule.destination_ranges.length > 0 
+  ? `  destination_address_prefix = "${rule.destination_ranges[0]}"`
+  : '  destination_address_prefix = "*"'}
+${rule.ports && rule.ports.length > 0 
+  ? `  source_port_range          = "*"
+  destination_port_range     = "${rule.ports[0]}"`
+  : '  source_port_range          = "*"
+  destination_port_range     = "*"'}
+}
+
+`);
+      } else if (provider === 'aviatrix') {
+        terraformBlocks.push(`resource "aviatrix_distributed_firewall_policy" "${resourceName}" {
+  name   = "${rule.name}"
+  action = "${rule.action === 'allow' ? 'PERMIT' : 'DENY'}"
+
+  rules {
+    name     = "${rule.name}"
+    action   = "${rule.action === 'allow' ? 'PERMIT' : 'DENY'}"
+    protocol = "${rule.protocols && rule.protocols.length > 0 ? rule.protocols[0].toUpperCase() : 'ANY'}"
+    
+${rule.source_ranges && rule.source_ranges.length > 0 
+  ? `    src_smart_groups = [${rule.source_ranges.map(r => `"${r}"`).join(', ')}]`
+  : ''}
+${rule.destination_ranges && rule.destination_ranges.length > 0 
+  ? `    dst_smart_groups = [${rule.destination_ranges.map(r => `"${r}"`).join(', ')}]`
+  : ''}
+${rule.ports && rule.ports.length > 0 
+  ? `    port_ranges {
+      lo = ${rule.ports[0].split('-')[0] || rule.ports[0]}
+      hi = ${rule.ports[0].split('-')[1] || rule.ports[0]}
+    }`
+  : ''}
+    logging = ${rule.logging_enabled ? 'true' : 'false'}
+    watch   = false
+  }
+}
+
+`);
+      } else {
+        // Generic fallback
+        terraformBlocks.push(`# Firewall Rule: ${rule.name}
+# Provider: ${provider}
+# Direction: ${rule.direction}
+# Action: ${rule.action}
+# This rule needs provider-specific Terraform resource definition
+
+`);
+      }
+    });
+
+    return terraformBlocks.join('\n');
+  },
+
   // Generate sample rules for testing
   generateSampleRules: (provider: string = 'gcp'): FirewallRule[] => {
     const validProvider = provider as CloudProvider;
