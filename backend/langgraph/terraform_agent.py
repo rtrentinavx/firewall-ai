@@ -5,7 +5,7 @@ Uses LLM to intelligently parse and validate Terraform firewall configurations
 
 import logging
 import json
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, cast
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -231,10 +231,10 @@ Parse the code now and return ONLY the JSON output:"""
         
         if start_idx >= 0 and end_idx > start_idx:
             json_str = response_str[start_idx:end_idx]
-            return json.loads(json_str)
+            return cast(Dict[str, Any], json.loads(json_str))
         
         # If no JSON found, try to parse the whole response
-        return json.loads(response_str)
+        return cast(Dict[str, Any], json.loads(response_str))
 
     async def _fallback_parse(
         self,

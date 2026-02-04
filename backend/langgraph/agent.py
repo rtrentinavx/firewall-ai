@@ -6,34 +6,22 @@ Implements the Agentic SDLC workflow for firewall rule analysis
 import logging
 import json
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, cast
 from pydantic import BaseModel
 
-from models.firewall_rule import FirewallRule, AuditResult
+from models.firewall_rule import (
+    FirewallRule,
+    AuditResult,
+    RuleViolation,
+    Recommendation,
+    ViolationSeverity,
+    CloudProvider
+)
 from normalization.engine import NormalizationEngine
 from caching.context_cache import ContextCache
 from caching.semantic_cache import SemanticCache
-from langgraph.graph import END, StateGraph
 
 logger = logging.getLogger(__name__)
-
-
-def _get_vertex_llm():
-    """Initialize Vertex AI chat model when credentials and project are available."""
-    try:
-        from langchain_google_vertexai import ChatVertexAI
-        import os
-        if not os.environ.get("GOOGLE_CLOUD_PROJECT"):
-            logger.warning("Vertex AI: GOOGLE_CLOUD_PROJECT not set")
-            return None
-        return ChatVertexAI(
-            model_name="gemini-1.5-pro",
-            temperature=0.1,
-            max_output_tokens=4096,
-        )
-    except Exception as e:
-        logger.warning("Vertex AI not available: %s", e)
-        return None
 
 class AuditState(BaseModel):
     """State object for the audit workflow"""
@@ -50,18 +38,18 @@ class FirewallAuditAgent:
     """Main agent orchestrating the firewall audit workflow using LangGraph"""
 
     def __init__(self):
-        self.llm = _get_vertex_llm()
-        self.vertex_available = self.llm is not None
-        if self.vertex_available:
-            logger.info("Firewall audit agent: Vertex AI (Gemini) enabled")
-        else:
-            logger.info("Firewall audit agent: running without Vertex AI (mock/cache only)")
+        # Temporarily disable LLM integration to avoid pandas compatibility issues
+        # self.llm = VertexAI(
+        #     model_name="gemini-1.5-pro",
+        #     temperature=0.1,
+        #     max_tokens=4096
+        # )
 
         self.normalization_engine = NormalizationEngine()
         self.context_cache = ContextCache()
         self.semantic_cache = SemanticCache()
 
-        # Build the audit workflow graph (None until full node implementations exist)
+        # Build the audit workflow graph
         self.workflow = self._build_workflow()
 
     def _build_workflow(self):
@@ -109,36 +97,50 @@ class FirewallAuditAgent:
 
         if cached_result:
             logger.info("Returning cached audit result")
-            return cached_result
+            # Type cast since cache returns Any
+            return cast(AuditResult, cached_result)
 
         # For now, return mock audit results to allow server to start
         # TODO: Re-enable full LangGraph workflow once pandas compatibility is resolved
         mock_violations = [
-            {
-                "rule_id": "mock-rule-1",
-                "severity": "medium",
-                "description": "Mock security violation for testing",
-                "recommendation": "Review and tighten firewall rules"
-            }
+            RuleViolation(
+                rule_id="mock-rule-1",
+                rule_name="mock-rule-1",
+                severity=ViolationSeverity.MEDIUM,
+                category="security",
+                description="Mock security violation for testing",
+                reason="Test violation",
+                remediation="Review and tighten firewall rules",
+                risk_score=5.0
+            )
         ]
 
         mock_recommendations = [
-            {
-                "type": "security",
-                "priority": "high",
-                "description": "Implement principle of least privilege",
-                "action": "Restrict source IP ranges to specific subnets"
-            }
+            Recommendation(
+                id="mock-rec-1",
+                rule_id="mock-rule-1",
+                title="Implement principle of least privilege",
+                description="Restrict source IP ranges to specific subnets",
+                terraform_code="# Example terraform code",
+                explanation="This reduces attack surface",
+                risk_reduction=3.0,
+                effort_level="medium"
+            )
         ]
 
+        # Determine cloud provider from rules
+        provider = CloudProvider.GCP
+        if rules:
+            provider = rules[0].cloud_provider
+
         audit_result = AuditResult(
-            timestamp=datetime.now(),
-            rules_analyzed=len(rules),
+            total_rules=len(rules),
             violations_found=len(mock_violations),
+            recommendations=len(mock_recommendations),
+            intent=intent,
+            cloud_provider=provider,
             violations=mock_violations,
-            recommendations=mock_recommendations,
-            compliance_score=85.0,
-            risk_level="medium"
+            recommendations_list=mock_recommendations
         )
 
         # Cache the result

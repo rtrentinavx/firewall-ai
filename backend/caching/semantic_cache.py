@@ -20,8 +20,8 @@ class SemanticCache:
         self.model = SentenceTransformer(model_name)
         self.max_entries = max_entries
         self.entries: List[Dict[str, Any]] = []
-        self.vectors = None
-        self.index = None
+        self.vectors: Optional[np.ndarray[Any, np.dtype[np.floating[Any]]]] = None
+        self.index: Optional[faiss.Index] = None
         self.embedding_dim = self.model.get_sentence_embedding_dimension()
 
         # Initialize FAISS index
@@ -112,7 +112,8 @@ class SemanticCache:
         else:
             self.vectors = np.vstack([self.vectors, vector])
 
-        self.index.add(vector)
+        if self.index is not None:
+            self.index.add(vector)
 
         # Maintain size limit
         if len(self.entries) > self.max_entries:
@@ -144,7 +145,7 @@ class SemanticCache:
             "model_name": self.model.get_sentence_embedding_dimension()
         }
 
-    def _generate_embedding_from_key(self, key: str) -> Optional[np.ndarray]:
+    def _generate_embedding_from_key(self, key: str) -> Optional[np.ndarray[Any, np.dtype[np.floating[Any]]]]:
         """Generate embedding from semantic key"""
 
         try:
@@ -154,7 +155,7 @@ class SemanticCache:
 
             # Simple approach: use the key as text for embedding
             embedding = self.model.encode(key)
-            return embedding
+            return np.array(embedding, dtype=np.float32)
 
         except Exception as e:
             logger.error(f"Failed to generate embedding: {e}")
@@ -221,12 +222,13 @@ class SemanticCache:
         if embeddings:
             self.vectors = np.array(embeddings, dtype=np.float32)
             self.index = faiss.IndexFlatIP(self.embedding_dim)
-            self.index.add(self.vectors)
+            if self.index is not None:
+                self.index.add(self.vectors)
 
     async def find_similar_issues(self, issue_description: str, limit: int = 5) -> List[Dict[str, Any]]:
         """Find similar historical issues and their resolutions"""
 
-        if not self.entries:
+        if not self.entries or self.index is None:
             return []
 
         # Embed the issue description
@@ -271,6 +273,7 @@ class SemanticCache:
         else:
             self.vectors = np.vstack([self.vectors, vector])
 
-        self.index.add(vector)
+        if self.index is not None:
+            self.index.add(vector)
 
         logger.info("Learned from user feedback and updated semantic cache")

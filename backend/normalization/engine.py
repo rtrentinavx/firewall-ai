@@ -184,10 +184,10 @@ class NormalizationEngine:
     def _parse_gcp_protocols(self, protocols: List[str], ports: List[str]) -> List[Dict[str, Any]]:
         """Parse GCP protocol:port combinations"""
 
-        parsed_protocols = []
+        parsed_protocols: List[Dict[str, Any]] = []
 
         for i, protocol in enumerate(protocols):
-            protocol_data = {"protocol": protocol}
+            protocol_data: Dict[str, Any] = {"protocol": protocol}
 
             # Try to match with corresponding port
             if i < len(ports):
