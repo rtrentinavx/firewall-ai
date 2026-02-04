@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import Image from 'next/image';
 import './globals.css';
 import ThemeProvider from '@/components/theme-provider';
 import ThemeToggle from '@/components/theme-toggle';
@@ -9,7 +10,13 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Firewall AI - Agentic SDLC for Multi-Cloud Security',
-  description: 'Intelligent firewall auditing platform with AI-powered analysis across GCP, Azure, and Aviatrix'
+  description: 'Intelligent firewall auditing platform with AI-powered analysis across GCP, Azure, and Aviatrix',
+  icons: {
+    icon: [
+      { url: '/logo.svg', type: 'image/svg+xml' }
+    ],
+    apple: '/logo.svg',
+  }
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -21,8 +28,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <header className="sticky top-0 z-40 border-b border-slate-200/60 bg-white/70 backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-950/60">
               <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-blue-500 text-white shadow-sm">
-                    AI
+                  <div className="relative flex h-9 w-9 items-center justify-center rounded-xl overflow-hidden bg-white dark:bg-slate-800 shadow-sm">
+                    <Image
+                      src="/logo.svg"
+                      alt="Firewall AI Logo"
+                      width={36}
+                      height={36}
+                      className="object-contain"
+                      priority
+                    />
                   </div>
                   <div className="leading-tight">
                     <p className="text-sm font-semibold">Firewall AI</p>

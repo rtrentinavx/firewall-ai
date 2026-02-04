@@ -143,7 +143,9 @@ class TelemetryCollector:
                 'events_by_type': dict(by_type),
                 'events_by_name': dict(by_name),
                 'performance_metrics': perf_averages,
-                'time_range_hours': hours
+                'time_range_hours': hours,
+                'backend': 'custom',
+                'exported_to': 'none'
             }
     
     def clear_events(self) -> int:

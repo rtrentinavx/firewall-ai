@@ -59,6 +59,7 @@ export default function AnalysisTrackingPanel() {
 
   useEffect(() => {
     loadStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeRange]);
 
   const formatDuration = (seconds: number) => {

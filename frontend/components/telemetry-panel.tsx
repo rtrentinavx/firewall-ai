@@ -25,6 +25,8 @@ type TelemetryStats = {
   events_by_name: Record<string, number>;
   performance_metrics: Record<string, number>;
   time_range_hours: number;
+  backend?: string;
+  exported_to?: string;
 };
 
 type TelemetryConfig = {
@@ -129,14 +131,26 @@ export default function TelemetryPanel() {
       const response = await axios.get(`${baseURL}/telemetry/events`, {
         params,
         headers: getAuthHeaders(),
+        timeout: 10000,
       });
       
       if (response.data.success) {
-        setEvents(response.data.events);
+        setEvents(response.data.events || []);
+      } else {
+        throw new Error(response.data.error || 'Failed to load events');
       }
     } catch (err) {
+      console.error('Error loading telemetry events:', err);
       if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.error || err.message || 'Failed to load events');
+        if (err.code === 'ECONNABORTED') {
+          setError('Request timeout - backend may be slow or unresponsive');
+        } else if (err.code === 'ECONNRESET') {
+          setError('Connection reset - backend may have crashed. Please check backend logs.');
+        } else {
+          setError(err.response?.data?.error || err.response?.data?.details || err.message || 'Failed to load events');
+        }
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to load events');
       }
     } finally {
       setLoading(false);
@@ -149,14 +163,26 @@ export default function TelemetryPanel() {
       const response = await axios.get(`${baseURL}/telemetry/stats`, {
         params: { hours: timeRange },
         headers: getAuthHeaders(),
+        timeout: 10000,
       });
       
       if (response.data.success) {
         setStats(response.data.stats);
+      } else {
+        throw new Error(response.data.error || 'Failed to load stats');
       }
     } catch (err) {
+      console.error('Error loading telemetry stats:', err);
       if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.error || err.message || 'Failed to load stats');
+        if (err.code === 'ECONNABORTED') {
+          setError('Request timeout - backend may be slow or unresponsive');
+        } else if (err.code === 'ECONNRESET') {
+          setError('Connection reset - backend may have crashed. Please check backend logs.');
+        } else {
+          setError(err.response?.data?.error || err.response?.data?.details || err.message || 'Failed to load stats');
+        }
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to load stats');
       }
     }
   };
@@ -189,6 +215,7 @@ export default function TelemetryPanel() {
 
   useEffect(() => {
     refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeRange, eventTypeFilter]);
 
   const formatDate = (isoString: string) => {

@@ -259,6 +259,7 @@ export default function RAGDocumentManager() {
 
   useEffect(() => {
     loadDocuments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const formatFileSize = (bytes: number) => {
@@ -418,7 +419,7 @@ export default function RAGDocumentManager() {
                   </div>
                 ) : documents.length === 0 ? (
                   <p className="text-center py-8 text-slate-500 dark:text-slate-400">
-                    No documents yet. Add documents using the "Add Documents" tab.
+                    No documents yet. Add documents using the &quot;Add Documents&quot; tab.
                   </p>
                 ) : (
                   <ScrollArea className="h-[500px]">

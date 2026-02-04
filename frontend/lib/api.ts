@@ -1,5 +1,5 @@
 import axios, { AxiosResponse } from 'axios';
-import { ApiResponse, AuditRequest, AuditResult, FirewallRule, NormalizedRule, CacheStats, CloudProvider } from '@/types';
+import { ApiResponse, AuditRequest, AuditResult, FirewallRule, NormalizedRule, CacheStats, CloudProvider, User } from '@/types';
 
 // Create axios instance with base configuration
 const api = axios.create({
@@ -52,7 +52,9 @@ export const auditApi = {
 
   // Get cache statistics
   getCacheStats: async (): Promise<CacheStats> => {
-    const response: AxiosResponse<ApiResponse<CacheStats>> = await api.get('/cache/stats');
+    const response: AxiosResponse<ApiResponse<CacheStats>> = await api.get('/cache/stats', {
+      timeout: 10000, // 10 seconds timeout for cache stats
+    });
     if (!response.data.success) {
       throw new Error(response.data.error || 'Failed to get cache stats');
     }
@@ -143,7 +145,25 @@ export const auditApi = {
       throw new Error(response.data.error || 'Failed to parse Terraform directory');
     }
     return response.data.rules || [];
-  }
+  },
+
+  // Get current user
+  getCurrentUser: async (): Promise<User> => {
+    const response: AxiosResponse<ApiResponse<User> & { user?: User }> = await api.get('/auth/me');
+    if (!response.data.success || !response.data.user) {
+      throw new Error(response.data.error || 'Failed to get current user');
+    }
+    // Map simple user object to User type
+    const userData = response.data.user;
+    return {
+      user_id: 'admin',
+      username: userData.username || 'admin',
+      email: userData.email || 'admin@firewall-ai.local',
+      role: (userData.role || 'admin') as 'admin' | 'user' | 'viewer',
+      created_at: new Date().toISOString(),
+      active: true
+    };
+  },
 };
 
 // Utility functions
@@ -271,6 +291,33 @@ ${rule.ports && rule.ports.length > 0
 
 `);
       } else if (provider === 'aviatrix') {
+        // Extract web groups from provider_specific or tags
+        const webGroups: string[] = [];
+        
+        // Check provider_specific for web_groups
+        if (rule.provider_specific?.web_groups && Array.isArray(rule.provider_specific.web_groups)) {
+          webGroups.push(...rule.provider_specific.web_groups);
+        }
+        
+        // Extract web groups from source_tags (prefixed with "webgroup:")
+        if (rule.source_tags) {
+          const sourceWebGroups = rule.source_tags
+            .filter(tag => tag.startsWith('webgroup:'))
+            .map(tag => tag.replace('webgroup:', ''));
+          webGroups.push(...sourceWebGroups);
+        }
+        
+        // Extract web groups from target_tags (prefixed with "webgroup:")
+        if (rule.target_tags) {
+          const targetWebGroups = rule.target_tags
+            .filter(tag => tag.startsWith('webgroup:'))
+            .map(tag => tag.replace('webgroup:', ''));
+          webGroups.push(...targetWebGroups);
+        }
+        
+        // Remove duplicates
+        const uniqueWebGroups = Array.from(new Set(webGroups));
+        
         // Aviatrix DCF Ruleset format
         terraformBlocks.push(`resource "aviatrix_dcf_ruleset" "${resourceName}" {
   name = "${rule.name}"
@@ -285,6 +332,9 @@ ${rule.source_ranges && rule.source_ranges.length > 0
   : ''}
 ${rule.destination_ranges && rule.destination_ranges.length > 0 
   ? `    dst_smart_groups = [${rule.destination_ranges.map(r => `"${r}"`).join(', ')}]`
+  : ''}
+${uniqueWebGroups.length > 0 
+  ? `    web_groups = [${uniqueWebGroups.map(wg => `"${wg}"`).join(', ')}]`
   : ''}
 ${rule.ports && rule.ports.length > 0 
   ? `    port_ranges {

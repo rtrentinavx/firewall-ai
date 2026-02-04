@@ -8,7 +8,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Try to import OpenTelemetry
+# Try to import OpenTelemetry core packages
 try:
     from opentelemetry import trace, metrics
     from opentelemetry.sdk.trace import TracerProvider
@@ -17,14 +17,22 @@ try:
     from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
     from opentelemetry.instrumentation.flask import FlaskInstrumentor
     from opentelemetry.instrumentation.requests import RequestsInstrumentor
-    from opentelemetry.exporter.gcp.trace import CloudTraceSpanExporter
-    from opentelemetry.exporter.gcp.monitoring import MonitoringExporter
     from opentelemetry.sdk.resources import Resource
     
     OPENTELEMETRY_AVAILABLE = True
 except ImportError:
     OPENTELEMETRY_AVAILABLE = False
-    logger.warning("OpenTelemetry not available. Install with: pip install opentelemetry-sdk opentelemetry-exporter-gcp-monitoring")
+    logger.warning("OpenTelemetry core packages not available. Install with: pip install opentelemetry-sdk")
+
+# Try to import GCP exporters (optional)
+try:
+    from opentelemetry.exporter.gcp.trace import CloudTraceSpanExporter
+    from opentelemetry.exporter.gcp.monitoring import MonitoringExporter
+    GCP_EXPORTERS_AVAILABLE = True
+except ImportError:
+    GCP_EXPORTERS_AVAILABLE = False
+    if OPENTELEMETRY_AVAILABLE:
+        logger.info("OpenTelemetry GCP exporters not available. Install with: pip install --pre opentelemetry-exporter-gcp-monitoring opentelemetry-exporter-gcp-trace")
 
 
 def setup_opentelemetry(
@@ -58,7 +66,7 @@ def setup_opentelemetry(
         trace_provider = TracerProvider(resource=resource)
         trace.set_tracer_provider(trace_provider)
         
-        if enable_gcp_export:
+        if enable_gcp_export and GCP_EXPORTERS_AVAILABLE:
             project_id = os.getenv('GCP_PROJECT') or os.getenv('GOOGLE_CLOUD_PROJECT')
             if project_id:
                 try:
@@ -67,9 +75,13 @@ def setup_opentelemetry(
                     logger.info(f"OpenTelemetry tracing configured for GCP project: {project_id}")
                 except Exception as e:
                     logger.warning(f"Failed to setup GCP trace exporter: {e}")
+            else:
+                logger.info("GCP project ID not configured, using default span processor")
+        elif enable_gcp_export and not GCP_EXPORTERS_AVAILABLE:
+            logger.info("GCP exporters not available, using default span processor (spans will not be exported to GCP)")
         
         # Setup metrics
-        if enable_gcp_export:
+        if enable_gcp_export and GCP_EXPORTERS_AVAILABLE:
             project_id = os.getenv('GCP_PROJECT') or os.getenv('GOOGLE_CLOUD_PROJECT')
             if project_id:
                 try:
@@ -85,6 +97,10 @@ def setup_opentelemetry(
                     logger.info(f"OpenTelemetry metrics configured for GCP project: {project_id}")
                 except Exception as e:
                     logger.warning(f"Failed to setup GCP metrics exporter: {e}")
+            else:
+                logger.info("GCP project ID not configured, metrics will not be exported to GCP")
+        elif enable_gcp_export and not GCP_EXPORTERS_AVAILABLE:
+            logger.info("GCP exporters not available, metrics will not be exported to GCP")
         
         logger.info("OpenTelemetry setup completed")
         return True

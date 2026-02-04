@@ -54,6 +54,7 @@ export default function ModelSelectorPanel() {
       const baseURL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
       const response = await axios.get(`${baseURL}/models`, {
         headers: getAuthHeaders(),
+        timeout: 10000,
       });
       
       if (response.data.success) {
@@ -65,10 +66,16 @@ export default function ModelSelectorPanel() {
     } catch (err) {
       console.error('Error loading models:', err);
       if (axios.isAxiosError(err)) {
-        const errorData = err.response?.data;
-        const errorMessage = errorData?.error || errorData?.details || err.message || 'Failed to load models';
-        const status = err.response?.status;
-        setError(status ? `[${status}] ${errorMessage}` : errorMessage);
+        if (err.code === 'ECONNABORTED') {
+          setError('Request timeout - backend may be slow or unresponsive');
+        } else if (err.code === 'ECONNRESET') {
+          setError('Connection reset - backend may have crashed. Please check backend logs.');
+        } else {
+          const errorData = err.response?.data;
+          const errorMessage = errorData?.error || errorData?.details || err.message || 'Failed to load models';
+          const status = err.response?.status;
+          setError(status ? `[${status}] ${errorMessage}` : errorMessage);
+        }
       } else {
         setError(err instanceof Error ? err.message : 'Failed to load models');
       }
@@ -116,6 +123,7 @@ export default function ModelSelectorPanel() {
 
   useEffect(() => {
     loadModels();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading && !modelsData) {
@@ -167,6 +175,10 @@ export default function ModelSelectorPanel() {
         </div>
       </div>
     );
+  }
+
+  if (!modelsData) {
+    return null;
   }
 
   const currentModel = modelsData.current_model;

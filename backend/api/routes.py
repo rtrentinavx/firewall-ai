@@ -8,8 +8,8 @@ import os
 import base64
 import asyncio
 import time
-from flask import request, jsonify, Blueprint, Response
-from typing import Dict, Any, List
+from flask import request, jsonify, Blueprint, Response, g
+from typing import Dict, Any, List, Optional
 import json
 
 from models.firewall_rule import FirewallRule, AuditResult, CloudProvider, ComplianceResult
@@ -52,9 +52,6 @@ def register_routes(
         logger.error(f"Failed to import model config or tracker: {e}", exc_info=True)
         # Continue anyway - routes will fail gracefully
 
-    admin_user = os.getenv('ADMIN_USERNAME', 'admin')
-    admin_password = os.getenv('ADMIN_PASSWORD', 'admin123')
-
     def _unauthorized():
         return Response(
             'Unauthorized',
@@ -63,31 +60,123 @@ def register_routes(
         )
 
     def _is_authorized() -> bool:
+        """Check if request is authorized using admin credentials from environment variables"""
         auth_header = request.headers.get('Authorization', '')
         if not auth_header.startswith('Basic '):
+            logger.debug("No Basic auth header found")
             return False
         try:
             encoded = auth_header.split(' ', 1)[1]
             decoded = base64.b64decode(encoded).decode('utf-8')
             username, password = decoded.split(':', 1)
-            return username == admin_user and password == admin_password
-        except Exception:
+            logger.debug(f"Attempting to authenticate user: {username}")
+            
+            # Check against environment variables
+            admin_username = os.getenv('ADMIN_USERNAME', 'admin')
+            admin_password = os.getenv('ADMIN_PASSWORD', 'admin')
+            
+            logger.debug(f"Comparing: username='{username}' vs '{admin_username}', password='{password[:3]}...' vs '{admin_password[:3]}...'")
+            
+            if username == admin_username and password == admin_password:
+                # Store admin user info in g object
+                g.current_user = type('User', (), {
+                    'username': admin_username,
+                    'email': f"{admin_username}@firewall-ai.local",
+                    'role': 'admin',
+                    'user_id': 'admin'
+                })()
+                logger.info(f"Admin user {username} authenticated successfully")
+                return True
+            
+            logger.debug(f"Authentication failed for user: {username}")
             return False
+        except Exception as e:
+            logger.error(f"Authentication error: {e}", exc_info=True)
+            return False
+    
+    def _require_admin() -> Optional[Response]:
+        """Require admin role - all authenticated users are admin"""
+        if not hasattr(g, 'current_user') or not g.current_user:
+            return _unauthorized()
+        # All authenticated users are admin, so just check if authenticated
+        return None
 
     @api.before_request
     def require_basic_auth():
-        open_paths = {'/api/v1/health', '/api/v1/health/services', '/api/v1/auth/login'}
-        if request.path in open_paths:
+        try:
+            open_paths = {
+                '/api/v1/health', 
+                '/api/v1/health/services', 
+                '/api/v1/auth/login'
+            }
+            if request.path in open_paths:
+                return None
+            
+            logger.debug(f"Authenticating request to {request.path}")
+            auth_result = _is_authorized()
+            if not auth_result:
+                logger.warning(f"Authentication failed for {request.path}")
+                return _unauthorized()
+            logger.debug(f"Authentication successful for {request.path}")
             return None
-        if not _is_authorized():
-            return _unauthorized()
-        return None
+        except Exception as e:
+            logger.error(f"Error in before_request for {request.path}: {e}", exc_info=True)
+            return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
 
     @api.route('/api/v1/auth/login', methods=['POST'])
     def login():
+        """Login endpoint"""
         if not _is_authorized():
             return _unauthorized()
+        
+        user = getattr(g, 'current_user', None)
+        if user:
+            return jsonify({
+                'success': True,
+                'user': {
+                    'username': user.username,
+                    'email': user.email,
+                    'role': user.role
+                }
+            })
         return jsonify({'success': True})
+    
+    @api.route('/api/v1/test', methods=['GET'])
+    def test_endpoint():
+        """Simple test endpoint to verify routing works"""
+        try:
+            logger.info("Test endpoint called")
+            return jsonify({
+                'success': True,
+                'message': 'Test endpoint working',
+                'path': request.path
+            })
+        except Exception as e:
+            logger.error(f"Error in test endpoint: {e}", exc_info=True)
+            return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+    
+    @api.route('/api/v1/auth/me', methods=['GET'])
+    def get_current_user():
+        """Get current authenticated user"""
+        try:
+            if not _is_authorized():
+                return _unauthorized()
+            
+            user = getattr(g, 'current_user', None)
+            if user:
+                return jsonify({
+                    'success': True,
+                    'user': {
+                        'username': user.username,
+                        'email': user.email,
+                        'role': user.role
+                    }
+                })
+            return _unauthorized()
+        except Exception as e:
+            logger.error(f"Error in get_current_user: {e}", exc_info=True)
+            return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+    
 
     @api.route('/api/v1/audit', methods=['POST'])
     async def audit_firewall_rules():
@@ -235,12 +324,23 @@ def register_routes(
             return jsonify({'error': 'Normalization failed', 'details': str(e)}), 500
 
     @api.route('/api/v1/cache/stats', methods=['GET'])
-    async def get_cache_stats():
+    def get_cache_stats():
         """Get cache statistics"""
 
+        def run_async(coro):
+            try:
+                return asyncio.run(coro)
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                try:
+                    asyncio.set_event_loop(loop)
+                    return loop.run_until_complete(coro)
+                finally:
+                    loop.close()
+
         try:
-            context_stats = await context_cache.get_stats()
-            semantic_stats = await semantic_cache.get_stats()
+            context_stats = run_async(context_cache.get_stats())
+            semantic_stats = run_async(semantic_cache.get_stats())
 
             return jsonify({
                 'success': True,
@@ -249,15 +349,26 @@ def register_routes(
             })
 
         except Exception as e:
-            logger.error(f"Failed to get cache stats: {e}")
-            return jsonify({'error': 'Failed to get cache stats'}), 500
+            logger.error(f"Failed to get cache stats: {e}", exc_info=True)
+            return jsonify({'error': 'Failed to get cache stats', 'details': str(e)}), 500
 
     @api.route('/api/v1/cache/clear', methods=['POST'])
-    async def clear_cache():
+    def clear_cache():
         """Clear all caches"""
 
+        def run_async(coro):
+            try:
+                return asyncio.run(coro)
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                try:
+                    asyncio.set_event_loop(loop)
+                    return loop.run_until_complete(coro)
+                finally:
+                    loop.close()
+
         try:
-            await context_cache.clear()
+            run_async(context_cache.clear())
             # Note: Semantic cache clearing would be implemented if needed
 
             return jsonify({
@@ -266,8 +377,8 @@ def register_routes(
             })
 
         except Exception as e:
-            logger.error(f"Failed to clear cache: {e}")
-            return jsonify({'error': 'Failed to clear cache'}), 500
+            logger.error(f"Failed to clear cache: {e}", exc_info=True)
+            return jsonify({'error': 'Failed to clear cache', 'details': str(e)}), 500
 
     @api.route('/api/v1/analytics/stats', methods=['GET'])
     def get_analysis_stats():
@@ -292,17 +403,21 @@ def register_routes(
         """Get list of available models and current model"""
         
         try:
+            logger.info("get_models endpoint called")
             model_manager = get_model_manager()
+            logger.debug("Model manager retrieved")
             current_model = model_manager.get_current_model()
+            logger.debug("Current model retrieved")
             available_models = model_manager.get_available_models()
+            logger.debug(f"Retrieved models: current={current_model.model_id if current_model else None}, available={len(available_models)}")
             
-            logger.info(f"Retrieved models: current={current_model.model_id if current_model else None}, available={len(available_models)}")
-            
-            return jsonify({
+            response_data = {
                 'success': True,
                 'current_model': current_model.to_dict() if current_model else None,
                 'available_models': available_models
-            })
+            }
+            logger.info("Returning models response")
+            return jsonify(response_data)
         
         except Exception as e:
             logger.error(f"Failed to get models: {e}", exc_info=True)
@@ -703,7 +818,7 @@ def register_routes(
                 'count': len(events)
             })
         except Exception as e:
-            logger.error(f"Failed to get telemetry events: {e}")
+            logger.error(f"Failed to get telemetry events: {e}", exc_info=True)
             return jsonify({'error': 'Failed to get telemetry events', 'details': str(e)}), 500
 
     @api.route('/api/v1/telemetry/stats', methods=['GET'])
@@ -721,7 +836,7 @@ def register_routes(
                 'stats': stats
             })
         except Exception as e:
-            logger.error(f"Failed to get telemetry stats: {e}")
+            logger.error(f"Failed to get telemetry stats: {e}", exc_info=True)
             return jsonify({'error': 'Failed to get telemetry stats', 'details': str(e)}), 500
 
     @api.route('/api/v1/telemetry/events', methods=['DELETE'])

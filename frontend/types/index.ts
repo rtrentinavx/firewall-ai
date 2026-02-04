@@ -127,6 +127,26 @@ export interface NormalizedRule {
   confidence_score: number;
 }
 
+// User Management Types
+export interface User {
+  user_id: string;
+  username: string;
+  email: string;
+  role: 'admin' | 'user' | 'viewer';
+  created_at: string;
+  last_login?: string;
+  active: boolean;
+}
+
+export interface UserStats {
+  total_users: number;
+  active_users: number;
+  inactive_users: number;
+  admins: number;
+  users: number;
+  viewers: number;
+}
+
 // UI State Types
 export interface AuditState {
   isLoading: boolean;
