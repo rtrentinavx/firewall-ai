@@ -100,7 +100,7 @@ const CustomNode = ({ data }: { data: any }) => {
 
   return (
     <div 
-      className={`px-5 py-4 rounded-xl border-2 shadow-xl min-w-[200px] backdrop-blur-sm transition-all hover:scale-105 ${
+      className={`px-5 py-4 rounded-xl border-2 shadow-xl w-[220px] h-[140px] backdrop-blur-sm transition-all hover:scale-105 flex flex-col ${
         data.type === 'rule' ? 'ring-2 ring-offset-2' : ''
       }`}
       style={{
@@ -112,52 +112,52 @@ const CustomNode = ({ data }: { data: any }) => {
           : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
       }}
     >
-      <div className="flex items-center gap-3 mb-2">
-        <div className="p-2 rounded-lg bg-white/50">
+      <div className="flex items-center gap-2 mb-1 flex-shrink-0">
+        <div className="p-1.5 rounded-lg bg-white/50 flex-shrink-0">
           {getIcon()}
         </div>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-sm text-gray-900">{data.label}</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="font-bold text-sm text-gray-900 truncate">{data.label}</span>
             {getDirectionIcon()}
           </div>
         </div>
       </div>
       
       {data.sublabel && (
-        <div className="text-xs text-gray-600 mb-2 font-medium">{data.sublabel}</div>
+        <div className="text-xs text-gray-600 mb-1.5 font-medium truncate flex-shrink-0">{data.sublabel}</div>
       )}
       
-      <div className="flex flex-wrap gap-2 mt-2">
+      <div className="flex flex-wrap gap-1.5 mt-auto flex-shrink-0">
         {data.direction && (
           <Badge 
             variant="outline"
-            className={`text-xs font-semibold ${
+            className={`text-xs font-semibold px-1.5 py-0 ${
               data.direction === 'ingress' 
                 ? 'border-blue-500 text-blue-700 bg-blue-50' 
                 : 'border-green-500 text-green-700 bg-green-50'
             }`}
           >
-            {data.direction === 'ingress' ? '⬇️ INGRESS' : '⬆️ EGRESS'}
+            {data.direction === 'ingress' ? '⬇️ IN' : '⬆️ OUT'}
           </Badge>
         )}
         {data.action && (
           <Badge 
             variant={data.action === 'allow' ? 'default' : 'destructive'}
-            className="text-xs font-semibold"
+            className="text-xs font-semibold px-1.5 py-0"
           >
-            {data.action === 'allow' ? '✓ ALLOW' : '✗ DENY'}
+            {data.action === 'allow' ? '✓' : '✗'}
           </Badge>
         )}
       </div>
       
       {data.protocols && data.protocols.length > 0 && (
-        <div className="mt-2 pt-2 border-t border-gray-200/50">
+        <div className="mt-1.5 pt-1.5 border-t border-gray-200/50 flex-shrink-0">
           <div className="flex items-center gap-1 text-xs text-gray-600">
-            <Activity className="w-3 h-3" />
-            <span className="font-medium">{data.protocols.join(', ')}</span>
+            <Activity className="w-3 h-3 flex-shrink-0" />
+            <span className="font-medium truncate">{data.protocols.join(', ')}</span>
             {data.ports && data.ports.length > 0 && (
-              <span className="text-gray-500">: {data.ports.join(', ')}</span>
+              <span className="text-gray-500 truncate">: {data.ports.join(', ')}</span>
             )}
           </div>
         </div>
