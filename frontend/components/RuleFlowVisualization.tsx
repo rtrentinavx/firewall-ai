@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useEffect } from 'react';
 import ReactFlow, {
   Node,
   Edge,
@@ -244,6 +244,18 @@ export function RuleFlowVisualization({ rules }: RuleFlowVisualizationProps) {
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  // Update nodes and edges when rules change
+  useEffect(() => {
+    if (rules.length > 0) {
+      setNodes(initialNodes);
+      setEdges(initialEdges);
+    } else {
+      setNodes([]);
+      setEdges([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rules]);
 
   if (rules.length === 0) {
     return (
