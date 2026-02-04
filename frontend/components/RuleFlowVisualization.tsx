@@ -185,14 +185,19 @@ export function RuleFlowVisualization({ rules }: RuleFlowVisualizationProps) {
     const egressRules = rules.filter(r => r.direction === 'egress');
 
     // Create source nodes (left side)
-    const sourceGroups = new Map<string, Set<string>>();
+    // For ingress: left = external source, right = internal destination
+    // For egress: left = internal source, right = external destination
+    const sourceGroups = new Map<string, { ruleIds: Set<string>, directions: Set<string> }>();
+    
+    // Collect sources from all rules with their directions
     rules.forEach(rule => {
       const sources = rule.source_ranges || ['Any'];
       sources.forEach(source => {
         if (!sourceGroups.has(source)) {
-          sourceGroups.set(source, new Set());
+          sourceGroups.set(source, { ruleIds: new Set(), directions: new Set() });
         }
-        sourceGroups.get(source)?.add(rule.id);
+        sourceGroups.get(source)!.ruleIds.add(rule.id);
+        sourceGroups.get(source)!.directions.add(rule.direction);
       });
     });
 
@@ -203,8 +208,30 @@ export function RuleFlowVisualization({ rules }: RuleFlowVisualizationProps) {
       const nodeId = `source-${idx}`;
       sourceNodeIds.push(nodeId);
       
-      const isExternal = source === 'Any' || source === '0.0.0.0/0' || source.includes('internet');
-      const nodeType = isExternal ? 'external' : 
+      const sourceInfo = sourceGroups.get(source)!;
+      const hasIngress = sourceInfo.directions.has('ingress');
+      const hasEgress = sourceInfo.directions.has('egress');
+      
+      // Determine if external: 0.0.0.0/0, Any, or internet-like = always external
+      const isExplicitlyExternal = source === 'Any' || source === '0.0.0.0/0' || 
+                                   source.includes('internet') || source.includes('external');
+      
+      // For ingress: source is external (traffic coming FROM outside)
+      // For egress: source is internal (traffic going FROM inside)
+      // If used by both, check the actual IP/CIDR
+      let isExternalSource = false;
+      if (hasIngress && !hasEgress) {
+        // Only ingress - source is external
+        isExternalSource = true;
+      } else if (hasEgress && !hasIngress) {
+        // Only egress - source is internal (unless explicitly external IP)
+        isExternalSource = isExplicitlyExternal;
+      } else {
+        // Both directions - check if it's an external IP
+        isExternalSource = isExplicitlyExternal;
+      }
+      
+      const nodeType = isExternalSource ? 'external' : 
                       source.includes('namespace') ? 'namespace' : 'cluster';
       
       nodes.push({
@@ -212,7 +239,7 @@ export function RuleFlowVisualization({ rules }: RuleFlowVisualizationProps) {
         type: 'custom',
         position: { x: 50, y: yPosition },
         data: {
-          label: isExternal ? 'Outside Cluster' : source.includes('namespace') ? 'In Namespace' : 'In Cluster',
+          label: isExternalSource ? '🌐 Outside' : (source.includes('namespace') ? '📦 Namespace' : '🏠 Inside'),
           sublabel: source === 'Any' ? 'Any endpoint' : source,
           type: nodeType,
         },
@@ -250,14 +277,17 @@ export function RuleFlowVisualization({ rules }: RuleFlowVisualizationProps) {
     });
 
     // Create destination nodes (right side)
-    const destGroups = new Map<string, Set<string>>();
+    const destGroups = new Map<string, { ruleIds: Set<string>, directions: Set<string> }>();
     rules.forEach(rule => {
-      const destinations = rule.destination_ranges || ['Any'];
+      // For ingress: destination is internal (target_tags, destination_ranges)
+      // For egress: destination is external (destination_ranges)
+      const destinations = rule.destination_ranges || rule.target_tags || ['Any'];
       destinations.forEach(dest => {
         if (!destGroups.has(dest)) {
-          destGroups.set(dest, new Set());
+          destGroups.set(dest, { ruleIds: new Set(), directions: new Set() });
         }
-        destGroups.get(dest)?.add(rule.id);
+        destGroups.get(dest)!.ruleIds.add(rule.id);
+        destGroups.get(dest)!.directions.add(rule.direction);
       });
     });
 
@@ -268,8 +298,30 @@ export function RuleFlowVisualization({ rules }: RuleFlowVisualizationProps) {
       const nodeId = `dest-${idx}`;
       destNodeIds.push(nodeId);
       
-      const isExternal = dest === 'Any' || dest === '0.0.0.0/0' || dest.includes('internet');
-      const nodeType = isExternal ? 'external' : 
+      const destInfo = destGroups.get(dest)!;
+      const hasIngress = destInfo.directions.has('ingress');
+      const hasEgress = destInfo.directions.has('egress');
+      
+      // Determine if external: 0.0.0.0/0, Any, or internet-like = always external
+      const isExplicitlyExternal = dest === 'Any' || dest === '0.0.0.0/0' || 
+                                   dest.includes('internet') || dest.includes('external');
+      
+      // For ingress: destination is internal (traffic going TO inside)
+      // For egress: destination is external (traffic going TO outside)
+      // If used by both, check the actual IP/CIDR
+      let isExternalDest = false;
+      if (hasIngress && !hasEgress) {
+        // Only ingress - destination is internal (unless explicitly external IP)
+        isExternalDest = isExplicitlyExternal;
+      } else if (hasEgress && !hasIngress) {
+        // Only egress - destination is external
+        isExternalDest = true;
+      } else {
+        // Both directions - check if it's an external IP
+        isExternalDest = isExplicitlyExternal;
+      }
+      
+      const nodeType = isExternalDest ? 'external' : 
                       dest.includes('namespace') ? 'namespace' : 'cluster';
       
       nodes.push({
@@ -277,7 +329,7 @@ export function RuleFlowVisualization({ rules }: RuleFlowVisualizationProps) {
         type: 'custom',
         position: { x: 750, y: yPosition },
         data: {
-          label: isExternal ? 'Outside Cluster' : dest.includes('namespace') ? 'In Namespace' : 'In Cluster',
+          label: isExternalDest ? '🌐 Outside' : (dest.includes('namespace') ? '📦 Namespace' : '🏠 Inside'),
           sublabel: dest === 'Any' ? 'Any endpoint' : dest,
           type: nodeType,
         },
