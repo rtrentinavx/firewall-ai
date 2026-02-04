@@ -157,3 +157,55 @@ resource "google_storage_bucket" "audit_reports" {
 
   labels = var.labels
 }
+
+# Bucket for RAG documents
+resource "google_storage_bucket" "rag_documents" {
+  name          = "${var.project_id}-rag-documents-${var.resource_suffix}"
+  location      = var.region
+  project       = var.project_id
+  force_destroy = false
+
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+
+  versioning {
+    enabled = true
+  }
+
+  logging {
+    log_bucket = google_storage_bucket.logs.name
+  }
+
+  lifecycle_rule {
+    condition {
+      age = 90
+    }
+    action {
+      type          = "SetStorageClass"
+      storage_class = "NEARLINE"
+    }
+  }
+
+  labels = var.labels
+}
+
+# Bucket for RAG FAISS indices
+resource "google_storage_bucket" "rag_indices" {
+  name          = "${var.project_id}-rag-indices-${var.resource_suffix}"
+  location      = var.region
+  project       = var.project_id
+  force_destroy = false
+
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+
+  versioning {
+    enabled = true
+  }
+
+  logging {
+    log_bucket = google_storage_bucket.logs.name
+  }
+
+  labels = var.labels
+}

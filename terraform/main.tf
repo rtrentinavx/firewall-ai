@@ -179,11 +179,14 @@ module "cloud_run" {
   vpc_connector_id       = var.enable_vpc_connector ? module.networking[0].vpc_connector_id : null
   gemini_secret_id       = module.secrets.gemini_api_key_secret_id
   azure_credentials_id   = module.secrets.azure_credentials_secret_id
+  rag_documents_bucket   = module.storage.rag_documents_bucket_name
+  rag_indices_bucket     = module.storage.rag_indices_bucket_name
   labels                 = local.common_labels
 
   depends_on = [
     google_project_service.required_apis,
     module.secrets,
+    module.storage,
     google_project_iam_member.service_account_roles
   ]
 }

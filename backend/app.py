@@ -25,16 +25,43 @@ from langgraph.agent import FirewallAuditAgent
 from normalization.engine import NormalizationEngine
 from caching.context_cache import ContextCache
 from caching.semantic_cache import SemanticCache
+from rag.knowledge_base import RAGKnowledgeBase
+from rag.persistent_storage import PersistentRAGStorage
 from api.routes import register_routes
+import atexit
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Initialize persistent storage for RAG
+persistent_storage = PersistentRAGStorage(
+    project_id=None,  # Will use environment variable
+    documents_bucket=None,  # Will use environment variable
+    indices_bucket=None,  # Will use environment variable
+    enable_persistence=True
+)
 
 # Initialize core components
-audit_agent = FirewallAuditAgent()
 normalization_engine = NormalizationEngine()
 context_cache = ContextCache()
 semantic_cache = SemanticCache()
+rag_knowledge_base = RAGKnowledgeBase(persistent_storage=persistent_storage)
+audit_agent = FirewallAuditAgent(rag_knowledge_base=rag_knowledge_base)
+
+# Register shutdown hook to save RAG state
+def save_rag_state():
+    """Save RAG knowledge base state on shutdown"""
+    try:
+        if rag_knowledge_base:
+            rag_knowledge_base.save_state()
+            logger.info("RAG knowledge base state saved on shutdown")
+    except Exception as e:
+        logger.error(f"Failed to save RAG state on shutdown: {e}")
+
+atexit.register(save_rag_state)
 
 # Register API routes
-register_routes(app, audit_agent, normalization_engine, context_cache, semantic_cache)
+register_routes(app, audit_agent, normalization_engine, context_cache, semantic_cache, rag_knowledge_base)
 
 @app.route('/health', methods=['GET'])
 def health_check():

@@ -3,13 +3,20 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Activity, RefreshCw, Server, ShieldCheck } from 'lucide-react';
+import { Activity, RefreshCw, Server, ShieldCheck, Brain } from 'lucide-react';
 
 type HealthResponse = {
   status: string;
   version: string;
   components: Record<string, string>;
   supported_providers?: string[];
+  embedding_model?: {
+    model_name: string;
+    provider: string;
+    library: string;
+    embedding_dimension: number;
+    model_loaded: boolean;
+  };
 };
 
 export default function AdminStatusPanel() {
@@ -59,24 +66,24 @@ export default function AdminStatusPanel() {
         </div>
       </div>
 
-      <div className="grid gap-4 p-6 md:grid-cols-3">
-        <div className="rounded-xl border border-slate-200/70 bg-white/80 p-4 dark:border-slate-800/70 dark:bg-slate-900/40">
-          <div className="flex items-center justify-between">
-            <p className="text-xs uppercase text-slate-500">Runtime</p>
+      <div className="grid gap-4 p-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="flex flex-col rounded-xl border border-slate-200/70 bg-white/80 p-4 dark:border-slate-800/70 dark:bg-slate-900/40">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Runtime</p>
             <Activity className="h-4 w-4 text-slate-400" />
           </div>
-          <p className="mt-3 text-2xl font-semibold text-slate-900 dark:text-white">
+          <p className="text-2xl font-semibold text-slate-900 dark:text-white mb-1">
             {health?.status ?? 'Unknown'}
           </p>
           <p className="text-sm text-slate-600 dark:text-slate-300">Version {health?.version ?? '—'}</p>
         </div>
 
-        <div className="rounded-xl border border-slate-200/70 bg-white/80 p-4 dark:border-slate-800/70 dark:bg-slate-900/40">
-          <div className="flex items-center justify-between">
-            <p className="text-xs uppercase text-slate-500">Core services</p>
+        <div className="flex flex-col rounded-xl border border-slate-200/70 bg-white/80 p-4 dark:border-slate-800/70 dark:bg-slate-900/40">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Core services</p>
             <Server className="h-4 w-4 text-slate-400" />
           </div>
-          <div className="mt-3 space-y-2 text-sm">
+          <div className="flex-1 space-y-2 text-sm">
             {health?.components
               ? Object.entries(health.components).map(([name, status]) => (
                   <div key={name} className="flex items-center justify-between">
@@ -84,21 +91,44 @@ export default function AdminStatusPanel() {
                     <Badge variant="secondary">{status}</Badge>
                   </div>
                 ))
-              : <p className="text-slate-500">No data</p>}
+              : <p className="text-slate-500 dark:text-slate-400">No data</p>}
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200/70 bg-white/80 p-4 dark:border-slate-800/70 dark:bg-slate-900/40">
-          <p className="text-xs uppercase text-slate-500">Cloud providers</p>
-          <div className="mt-3 flex flex-wrap gap-2">
+        <div className="flex flex-col rounded-xl border border-slate-200/70 bg-white/80 p-4 dark:border-slate-800/70 dark:bg-slate-900/40">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Cloud providers</p>
+          </div>
+          <div className="flex-1 flex flex-wrap gap-2 items-start">
             {health?.supported_providers?.length
               ? health.supported_providers.map((provider) => (
                   <Badge key={provider} variant="outline">
                     {provider.toUpperCase()}
                   </Badge>
                 ))
-              : <span className="text-sm text-slate-500">No providers</span>}
+              : <span className="text-sm text-slate-500 dark:text-slate-400">No providers</span>}
           </div>
+        </div>
+
+        <div className="flex flex-col rounded-xl border border-slate-200/70 bg-white/80 p-4 dark:border-slate-800/70 dark:bg-slate-900/40">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Embedding Model</p>
+            <Brain className="h-4 w-4 text-slate-400" />
+          </div>
+          {health?.embedding_model ? (
+            <>
+              <p className="text-sm font-semibold text-slate-900 dark:text-white mb-1 truncate" title={health.embedding_model.model_name}>
+                {health.embedding_model.model_name}
+              </p>
+              <div className="space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                <p>Provider: {health.embedding_model.provider}</p>
+                <p>Library: {health.embedding_model.library}</p>
+                <p>Dimension: {health.embedding_model.embedding_dimension}</p>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-slate-500 dark:text-slate-400">Not available</p>
+          )}
         </div>
       </div>
     </div>

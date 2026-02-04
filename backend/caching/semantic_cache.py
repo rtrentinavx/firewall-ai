@@ -17,6 +17,7 @@ class SemanticCache:
     """Semantic caching using vector similarity for firewall recommendations"""
 
     def __init__(self, model_name: str = "all-MiniLM-L6-v2", max_entries: int = 5000):
+        self.model_name = model_name
         self.model = SentenceTransformer(model_name)
         self.max_entries = max_entries
         self.entries: List[Dict[str, Any]] = []
@@ -132,7 +133,14 @@ class SemanticCache:
     async def get_stats(self) -> Dict[str, Any]:
         """Get semantic cache statistics"""
         if not self.entries:
-            return {"entries": 0, "total_usage": 0, "avg_similarity": 0}
+            return {
+                "entries": 0,
+                "total_usage": 0,
+                "avg_similarity": 0,
+                "max_entries": self.max_entries,
+                "embedding_dimension": self.embedding_dim,
+                "model_name": self.model_name
+            }
 
         total_usage = sum(entry["usage_count"] for entry in self.entries)
         avg_usage = total_usage / len(self.entries)
@@ -143,7 +151,17 @@ class SemanticCache:
             "total_usage": total_usage,
             "avg_usage_per_entry": avg_usage,
             "embedding_dimension": self.embedding_dim,
-            "model_name": self.model.get_sentence_embedding_dimension()
+            "model_name": self.model_name
+        }
+    
+    def get_model_info(self) -> Dict[str, Any]:
+        """Get information about the embedding model"""
+        return {
+            "model_name": self.model_name,
+            "provider": "HuggingFace",
+            "library": "sentence-transformers",
+            "embedding_dimension": self.embedding_dim,
+            "model_loaded": self.model is not None
         }
 
     def _generate_embedding_from_key(self, key: str) -> Optional[np.ndarray[Any, np.dtype[np.floating[Any]]]]:

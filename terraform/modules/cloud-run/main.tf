@@ -73,6 +73,16 @@ variable "labels" {
   type = map(string)
 }
 
+variable "rag_documents_bucket" {
+  type    = string
+  default = ""
+}
+
+variable "rag_indices_bucket" {
+  type    = string
+  default = ""
+}
+
 # Backend Cloud Run Service
 resource "google_cloud_run_v2_service" "backend" {
   name     = "firewall-ai-backend"
@@ -141,6 +151,22 @@ resource "google_cloud_run_v2_service" "backend" {
             secret  = var.gemini_secret_id
             version = "latest"
           }
+        }
+      }
+
+      dynamic "env" {
+        for_each = var.rag_documents_bucket != "" ? [1] : []
+        content {
+          name  = "RAG_STORAGE_BUCKET"
+          value = var.rag_documents_bucket
+        }
+      }
+
+      dynamic "env" {
+        for_each = var.rag_indices_bucket != "" ? [1] : []
+        content {
+          name  = "RAG_INDICES_BUCKET"
+          value = var.rag_indices_bucket
         }
       }
 

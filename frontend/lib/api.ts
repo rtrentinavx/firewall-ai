@@ -260,22 +260,20 @@ ${rule.logging_enabled ? '  enable_logging = true' : ''}
   
 ${rule.source_ranges && rule.source_ranges.length > 0 
   ? `  source_address_prefix      = "${rule.source_ranges[0]}"`
-  : '  source_address_prefix      = "*"'}
+  : `  source_address_prefix      = "*"`}
 ${rule.destination_ranges && rule.destination_ranges.length > 0 
   ? `  destination_address_prefix = "${rule.destination_ranges[0]}"`
-  : '  destination_address_prefix = "*"'}
+  : `  destination_address_prefix = "*"`}
 ${rule.ports && rule.ports.length > 0 
-  ? `  source_port_range          = "*"
-  destination_port_range     = "${rule.ports[0]}"`
-  : '  source_port_range          = "*"
-  destination_port_range     = "*"'}
+  ? `  source_port_range          = "*"\n  destination_port_range     = "${rule.ports[0]}"`
+  : `  source_port_range          = "*"\n  destination_port_range     = "*"`}
 }
 
 `);
       } else if (provider === 'aviatrix') {
-        terraformBlocks.push(`resource "aviatrix_distributed_firewall_policy" "${resourceName}" {
-  name   = "${rule.name}"
-  action = "${rule.action === 'allow' ? 'PERMIT' : 'DENY'}"
+        // Aviatrix DCF Ruleset format
+        terraformBlocks.push(`resource "aviatrix_dcf_ruleset" "${resourceName}" {
+  name = "${rule.name}"
 
   rules {
     name     = "${rule.name}"

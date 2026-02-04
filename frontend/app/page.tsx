@@ -1,6 +1,9 @@
 import FirewallAuditDashboard from '@/components/firewall-audit-dashboard';
 import AdminStatusPanel from '@/components/admin-status-panel';
 import CachePerformancePanel from '@/components/cache-performance-panel';
+import AnalysisTrackingPanel from '@/components/analysis-tracking-panel';
+import ModelSelectorPanel from '@/components/model-selector-panel';
+import RAGDocumentManager from '@/components/rag-document-manager';
 import AuthGate from '@/components/auth-gate';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,6 +24,15 @@ export default function Home() {
             </TabsContent>
             <TabsContent value="admin" className="pt-4">
               <AdminStatusPanel />
+              <div className="mt-6">
+                <ModelSelectorPanel />
+              </div>
+              <div className="mt-6">
+                <RAGDocumentManager />
+              </div>
+              <div className="mt-6">
+                <AnalysisTrackingPanel />
+              </div>
               <div className="mt-6">
                 <CachePerformancePanel />
               </div>

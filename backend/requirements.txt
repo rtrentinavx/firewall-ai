@@ -22,14 +22,23 @@ google-auth>=2.47.0,<3.0.0
 
 # Data processing and validation
 pydantic==2.5.2
-pandas==2.1.4
+# pandas is a dependency of langchain but not directly used in our code
+# Using newer version with better wheel support
+pandas>=2.2.0,<3.0.0
 numpy==1.26.2
 jsonschema==4.19.2
 
 # Caching and vector operations
 redis==5.0.1
-faiss-cpu==1.7.4
+# faiss-cpu 1.7.4 not available for Python 3.14+, using latest compatible version
+faiss-cpu>=1.13.0,<2.0.0
 sentence-transformers==2.2.2
+
+# RAG and document processing
+PyPDF2==3.0.1
+python-docx==1.1.0
+beautifulsoup4==4.12.2
+PyYAML==6.0.1
 
 # API and utilities
 requests==2.31.0

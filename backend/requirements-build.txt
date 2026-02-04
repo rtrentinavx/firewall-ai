@@ -1,0 +1,14 @@
+# Build dependencies for packages that need compilation
+# Install these before installing requirements.txt if you encounter build errors
+
+# For pandas and other packages that need Cython compilation
+cython>=3.0.0
+setuptools>=65.0.0
+wheel>=0.40.0
+numpy>=1.26.0  # Required for pandas build
+
+# macOS specific (if using Homebrew)
+# brew install gcc
+
+# Linux specific
+# sudo apt-get install build-essential python3-dev

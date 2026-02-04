@@ -8,6 +8,8 @@ import json
 from typing import Dict, List, Any, Optional, cast
 from pydantic import BaseModel
 
+from config.model_config import get_model_manager
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,24 +27,44 @@ class TerraformImportAgent:
 
     def __init__(self):
         """Initialize the Terraform import agent"""
+        self.model_manager = get_model_manager()
+        self.llm = None
         self.model_available = False
+        self._initialize_llm()
+    
+    def _initialize_llm(self) -> None:
+        """Initialize or reinitialize the LLM based on current model configuration"""
+        model_config = self.model_manager.get_current_model()
+        if not model_config or not model_config.available:
+            self.model_available = False
+            self.llm = None
+            logger.info("Model not available, falling back to regex-based parsing")
+            return
         
-        # Try to initialize LLM (Vertex AI or other)
         try:
-            # Attempt to use Vertex AI if available
-            from langchain_google_vertexai import VertexAI
-            self.llm = VertexAI(
-                model_name="gemini-1.5-flash",
-                temperature=0.1,
-                max_tokens=8192
-            )
-            self.model_available = True
-            logger.info("Terraform Import Agent initialized with Vertex AI")
+            if model_config.provider.value == "vertex_ai":
+                from langchain_google_vertexai import VertexAI
+                self.llm = VertexAI(
+                    model_name=model_config.model_id,
+                    temperature=model_config.temperature,
+                    max_tokens=model_config.max_tokens
+                )
+                self.model_available = True
+                logger.info(f"Terraform Import Agent initialized with {model_config.name} ({model_config.model_id})")
+            else:
+                logger.warning(f"Provider {model_config.provider.value} not yet implemented")
+                self.model_available = False
+                self.llm = None
         except Exception as e:
             logger.warning(f"Could not initialize LLM for Terraform agent: {e}")
             logger.info("Falling back to regex-based parsing")
             self.llm = None
             self.model_available = False
+    
+    def update_model(self) -> bool:
+        """Update the LLM to use the current model configuration"""
+        self._initialize_llm()
+        return self.model_available
 
     async def parse_terraform(
         self,

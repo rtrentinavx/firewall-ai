@@ -20,6 +20,7 @@ from models.firewall_rule import (
 from normalization.engine import NormalizationEngine
 from caching.context_cache import ContextCache
 from caching.semantic_cache import SemanticCache
+from rag.knowledge_base import RAGKnowledgeBase
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ class AuditState(BaseModel):
 class FirewallAuditAgent:
     """Main agent orchestrating the firewall audit workflow using LangGraph"""
 
-    def __init__(self):
+    def __init__(self, rag_knowledge_base: Optional[RAGKnowledgeBase] = None):
         # Temporarily disable LLM integration to avoid pandas compatibility issues
         # self.llm = VertexAI(
         #     model_name="gemini-1.5-pro",
@@ -48,6 +49,7 @@ class FirewallAuditAgent:
         self.normalization_engine = NormalizationEngine()
         self.context_cache = ContextCache()
         self.semantic_cache = SemanticCache()
+        self.rag_knowledge_base = rag_knowledge_base
 
         # Build the audit workflow graph
         self.workflow = self._build_workflow()
@@ -95,7 +97,9 @@ class FirewallAuditAgent:
         logger.info(f"Starting audit for {len(rules)} rules with intent: {intent}")
 
         # Check context cache first
-        cache_key = self.context_cache.generate_key(rules, intent)
+        # Convert FirewallRule objects to dictionaries for cache key generation
+        rules_dict = [rule.dict() for rule in rules]
+        cache_key = self.context_cache.generate_key(rules_dict, intent)
         cached_result = await self.context_cache.get(cache_key)
 
         if cached_result:
@@ -136,6 +140,27 @@ class FirewallAuditAgent:
         if rules:
             provider = rules[0].cloud_provider
 
+        # Retrieve relevant context from RAG knowledge base if available
+        rag_context = []
+        if self.rag_knowledge_base:
+            try:
+                # Search for relevant documents based on intent and provider
+                search_query = f"{intent} {provider.value} firewall security"
+                rag_results = self.rag_knowledge_base.search(search_query, limit=3, min_score=0.4)
+                rag_context = [
+                    {
+                        'content': result['chunk']['content'],
+                        'source': result['document']['title'] if result['document'] else 'Unknown',
+                        'relevance': result['relevance'],
+                        'score': result['score']
+                    }
+                    for result in rag_results
+                ]
+                if rag_context:
+                    logger.info(f"Retrieved {len(rag_context)} relevant documents from RAG knowledge base")
+            except Exception as e:
+                logger.warning(f"Failed to retrieve RAG context: {e}")
+
         audit_result = AuditResult(
             total_rules=len(rules),
             violations_found=len(mock_violations),
@@ -145,6 +170,11 @@ class FirewallAuditAgent:
             violations=mock_violations,
             recommendations_list=mock_recommendations
         )
+        
+        # Add RAG context to audit result summary if available
+        if rag_context:
+            audit_result.summary['rag_context'] = rag_context
+            audit_result.summary['rag_documents_used'] = len(rag_context)
 
         # Cache the result
         await self.context_cache.set(cache_key, audit_result)
