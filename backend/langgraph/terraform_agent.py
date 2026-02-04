@@ -64,7 +64,7 @@ class TerraformImportAgent:
     def update_model(self) -> bool:
         """Update the LLM to use the current model configuration"""
         self._initialize_llm()
-        return self.model_available
+        return bool(self.model_available)
 
     async def parse_terraform(
         self,

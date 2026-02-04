@@ -6,10 +6,11 @@ Werkzeug==2.3.7
 gunicorn==21.2.0
 
 # LangGraph and LangChain for agentic workflows (all use langchain-core 0.2.x)
+# Pin langchain-core explicitly to help pip resolve dependencies faster
+langchain-core>=0.2.0,<0.3.0
 langgraph>=0.2.0,<0.3.0
 langchain>=0.2.0,<0.3.0
 langchain-google-vertexai>=1.0.6,<2.0.0
-# 0.2.x uses langchain-core 0.2.x (0.0.x line requires langchain-core<0.2)
 langchain-community>=0.2.0,<0.3.0
 
 # Google Cloud and Vertex AI (>=1.56.0, >=2.17.0 required by langchain-google-vertexai 1.x)
@@ -21,11 +22,13 @@ google-cloud-secret-manager==2.17.0
 google-auth>=2.47.0,<3.0.0
 
 # Data processing and validation
-pydantic==2.5.2
+# pydantic 2.7.4+ required by langchain-core 0.2.x
+pydantic>=2.7.4,<3.0.0
 # pandas is a dependency of langchain but not directly used in our code
 # Using newer version with better wheel support
 pandas>=2.2.0,<3.0.0
-numpy==1.26.2
+# numpy pinned to avoid conflicts with pandas and other packages
+numpy>=1.26.2,<2.0.0
 jsonschema==4.19.2
 
 # Caching and vector operations

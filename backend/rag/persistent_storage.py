@@ -8,7 +8,7 @@ import os
 import json
 import pickle
 import tempfile
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, cast
 from datetime import datetime
 from pathlib import Path
 import numpy as np
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from google.cloud import storage
-    from google.cloud import firestore
+    from google.cloud import firestore  # type: ignore[attr-defined]
     GCP_AVAILABLE = True
 except ImportError:
     GCP_AVAILABLE = False
@@ -106,7 +106,7 @@ class PersistentRAGStorage:
             
             content = blob.download_as_text()
             logger.debug(f"Loaded document {document_id} from Cloud Storage")
-            return content
+            return str(content)
         except Exception as e:
             logger.error(f"Failed to load document {document_id}: {e}")
             return None
@@ -162,13 +162,15 @@ class PersistentRAGStorage:
                 return None
             
             metadata = doc.to_dict()
+            if metadata is None:
+                return None
             # Convert Firestore timestamps to ISO strings
             if 'created_at' in metadata and hasattr(metadata['created_at'], 'isoformat'):
                 metadata['created_at'] = metadata['created_at'].isoformat()
             if 'updated_at' in metadata and hasattr(metadata['updated_at'], 'isoformat'):
                 metadata['updated_at'] = metadata['updated_at'].isoformat()
             
-            return metadata
+            return dict(metadata)
         except Exception as e:
             logger.error(f"Failed to load metadata for document {document_id}: {e}")
             return None

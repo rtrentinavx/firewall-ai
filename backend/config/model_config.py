@@ -108,7 +108,7 @@ class ModelConfigManager:
     def get_current_model_id(self) -> str:
         """Get the current model ID"""
         with self._lock:
-            return self._current_model_id
+            return str(self._current_model_id)
     
     def set_model(self, model_id: str) -> bool:
         """Set the current model"""

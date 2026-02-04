@@ -5,9 +5,9 @@ Document Ingester - Handles document ingestion from files and URLs
 import logging
 import os
 import tempfile
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, cast
 from pathlib import Path
-import requests
+import requests  # type: ignore[import-untyped]
 from urllib.parse import urlparse
 import mimetypes
 
@@ -141,10 +141,10 @@ class DocumentIngester:
         
         elif ext in {'.yaml', '.yml'}:
             try:
-                import yaml
+                import yaml  # type: ignore[import-untyped]
                 with open(path, 'r', encoding='utf-8') as f:
                     data = yaml.safe_load(f)
-                    return yaml.dump(data, default_flow_style=False)
+                    return cast(str, yaml.dump(data, default_flow_style=False))
             except ImportError:
                 # Fallback to text reading
                 with open(path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -200,27 +200,27 @@ class DocumentIngester:
                 # Remove script and style elements
                 for script in soup(["script", "style"]):
                     script.decompose()
-                return soup.get_text(separator='\n', strip=True)
+                return cast(str, soup.get_text(separator='\n', strip=True))
             except ImportError:
                 # Fallback to raw text
-                return response.text
+                return cast(str, response.text)
         
         elif 'application/json' in content_type:
             # JSON content
             try:
                 data = response.json()
                 import json
-                return json.dumps(data, indent=2)
+                return cast(str, json.dumps(data, indent=2))
             except:
-                return response.text
+                return cast(str, response.text)
         
         elif 'text/' in content_type:
             # Plain text
-            return response.text
+            return cast(str, response.text)
         
         else:
             # Try to decode as text
             try:
-                return response.text
+                return cast(str, response.text)
             except:
                 raise ValueError(f"Unsupported content type: {content_type}")

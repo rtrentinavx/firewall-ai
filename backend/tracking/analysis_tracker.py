@@ -94,12 +94,12 @@ class AnalysisTracker:
         avg_execution_time = total_execution_time / len(recent_calls) if recent_calls else 0.0
         
         # Group by provider
-        calls_by_provider = defaultdict(int)
+        calls_by_provider: Dict[str, int] = defaultdict(int)
         for call in recent_calls:
             calls_by_provider[call['cloud_provider']] += 1
         
         # Group by hour
-        calls_by_hour = defaultdict(int)
+        calls_by_hour: Dict[str, int] = defaultdict(int)
         for call in recent_calls:
             call_time = datetime.fromisoformat(call['timestamp'])
             hour_key = call_time.strftime('%Y-%m-%d %H:00')
