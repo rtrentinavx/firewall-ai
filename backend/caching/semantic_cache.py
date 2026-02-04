@@ -6,7 +6,7 @@ Stores approved fixes and retrieves similar recommendations using vector similar
 import logging
 import numpy as np
 import json
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, cast
 from datetime import datetime, timedelta
 from sentence_transformers import SentenceTransformer
 import faiss
@@ -81,7 +81,8 @@ class SemanticCache:
 
         if similar_entries:
             logger.info(f"Found {len(similar_entries)} semantically similar recommendations")
-            return similar_entries[0]["recommendations"]  # Return the recommendations
+            # Type cast since dict access returns Any
+            return cast(List[Dict[str, Any]], similar_entries[0]["recommendations"])
 
         return None
 
