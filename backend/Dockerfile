@@ -10,9 +10,15 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements
 COPY requirements.txt .
+COPY requirements-opentelemetry.txt .
 
-# Install Python dependencies
+# Install Python dependencies (core packages)
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Install OpenTelemetry GCP exporters (pre-release packages)
+# These are installed but controlled by admin console toggle at runtime
+RUN pip install --no-cache-dir --pre -r requirements-opentelemetry.txt || \
+    echo "Warning: OpenTelemetry GCP exporters installation failed. App will use custom collector."
 
 # Copy application code
 COPY . .

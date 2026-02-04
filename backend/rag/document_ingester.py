@@ -7,7 +7,7 @@ import os
 import tempfile
 from typing import Dict, Any, Optional, Tuple, cast
 from pathlib import Path
-import requests  # type: ignore[import-untyped]
+import requests
 from urllib.parse import urlparse
 import mimetypes
 
@@ -141,7 +141,7 @@ class DocumentIngester:
         
         elif ext in {'.yaml', '.yml'}:
             try:
-                import yaml  # type: ignore[import-untyped]
+                import yaml
                 with open(path, 'r', encoding='utf-8') as f:
                     data = yaml.safe_load(f)
                     return cast(str, yaml.dump(data, default_flow_style=False))

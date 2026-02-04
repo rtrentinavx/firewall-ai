@@ -12,8 +12,9 @@ from flask import request, jsonify, Blueprint, Response
 from typing import Dict, Any, List
 import json
 
-from models.firewall_rule import FirewallRule, AuditResult, CloudProvider
+from models.firewall_rule import FirewallRule, AuditResult, CloudProvider, ComplianceResult
 from langgraph.agent import FirewallAuditAgent
+from langgraph.compliance_agent import ComplianceAgent
 from langgraph.terraform_agent import terraform_agent
 from normalization.engine import NormalizationEngine
 from caching.context_cache import ContextCache
@@ -23,6 +24,8 @@ from tracking.analysis_tracker import get_tracker
 from config.model_config import get_model_manager
 from rag.knowledge_base import RAGKnowledgeBase
 from rag.document_ingester import DocumentIngester
+from telemetry.collector import get_telemetry_collector
+from telemetry.config import get_telemetry_config
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +37,8 @@ def register_routes(
     semantic_cache: SemanticCache,
     rag_knowledge_base: RAGKnowledgeBase
 ):
+    # Initialize compliance agent
+    compliance_agent = ComplianceAgent(rag_knowledge_base=rag_knowledge_base)
     """Register all API routes"""
 
     api = Blueprint('api', __name__)
@@ -87,10 +92,16 @@ def register_routes(
     @api.route('/api/v1/audit', methods=['POST'])
     async def audit_firewall_rules():
         """Audit firewall rules endpoint"""
+        
+        # Track telemetry
+        telemetry = get_telemetry_collector()
+        data = request.get_json() or {}
+        telemetry.track_user_action('audit_firewall_rules', {
+            'rules_count': len(data.get('rules', [])),
+            'cloud_provider': data.get('cloud_provider', 'gcp')
+        })
 
         try:
-            data = request.get_json()
-
             if not data:
                 return jsonify({'error': 'No data provided'}), 400
 
@@ -140,6 +151,13 @@ def register_routes(
                     success=True
                 )
                 
+                # Track telemetry
+                telemetry = get_telemetry_collector()
+                telemetry.track_performance('audit_execution_time', execution_time, {
+                    'rule_count': len(rules),
+                    'cached': result.cached
+                })
+                
                 return jsonify({
                     'success': True,
                     'audit_id': result.id,
@@ -163,6 +181,13 @@ def register_routes(
                     error=error_message
                 )
                 
+                # Track telemetry error
+                telemetry = get_telemetry_collector()
+                telemetry.track_error('audit_failed', {
+                    'error': error_message,
+                    'rule_count': len(rules)
+                })
+                
                 logger.error(f"Audit failed: {error_message}")
                 return jsonify({'error': 'Audit failed', 'details': error_message}), 500
 
@@ -173,10 +198,15 @@ def register_routes(
     @api.route('/api/v1/rules/normalize', methods=['POST'])
     async def normalize_rules():
         """Normalize firewall rules endpoint"""
+        
+        # Track telemetry
+        telemetry = get_telemetry_collector()
+        data = request.get_json() or {}
+        telemetry.track_user_action('normalize_rules', {
+            'rules_count': len(data.get('rules', []))
+        })
 
         try:
-            data = request.get_json()
-
             if not data or 'rules' not in data:
                 return jsonify({'error': 'No rules provided'}), 400
 
@@ -201,6 +231,7 @@ def register_routes(
 
         except Exception as e:
             logger.error(f"Normalization failed: {e}")
+            telemetry.track_error('normalize_failed', {'error': str(e)})
             return jsonify({'error': 'Normalization failed', 'details': str(e)}), 500
 
     @api.route('/api/v1/cache/stats', methods=['GET'])
@@ -507,6 +538,207 @@ def register_routes(
         except Exception as e:
             logger.error(f"Failed to get RAG stats: {e}")
             return jsonify({'error': 'Failed to get RAG stats', 'details': str(e)}), 500
+
+    @api.route('/api/v1/compliance/check', methods=['POST'])
+    async def check_compliance():
+        """Check firewall rules for compliance with industry standards"""
+        
+        # Track telemetry
+        telemetry = get_telemetry_collector()
+        data = request.get_json() or {}
+        telemetry.track_user_action('check_compliance', {
+            'rules_count': len(data.get('rules', [])),
+            'cloud_provider': data.get('cloud_provider', 'gcp')
+        })
+
+        try:
+            if not data:
+                return jsonify({'error': 'No data provided'}), 400
+
+            # Extract parameters
+            rules_data = data.get('rules', [])
+            cloud_provider_str = data.get('cloud_provider', 'gcp')
+            standards = data.get('standards')  # Optional list of specific standards
+            use_rag = data.get('use_rag', True)  # Use RAG by default
+
+            if not rules_data:
+                return jsonify({'error': 'No rules provided'}), 400
+
+            # Convert cloud provider string to enum
+            try:
+                cloud_provider = CloudProvider(cloud_provider_str.lower())
+            except ValueError:
+                return jsonify({'error': f'Invalid cloud provider: {cloud_provider_str}'}), 400
+
+            # Convert to FirewallRule objects
+            rules = []
+            for rule_data in rules_data:
+                try:
+                    rule = FirewallRule(**rule_data)
+                    rules.append(rule)
+                except Exception as e:
+                    logger.warning(f"Invalid rule data: {e}")
+                    continue
+
+            if not rules:
+                return jsonify({'error': 'No valid rules found'}), 400
+
+            # Execute compliance check
+            start_time = time.time()
+            result = None
+            error_message = None
+            
+            try:
+                result = await compliance_agent.check_compliance(
+                    rules=rules,
+                    cloud_provider=cloud_provider,
+                    standards=standards,
+                    use_rag=use_rag
+                )
+                execution_time = time.time() - start_time
+                
+                # Track telemetry
+                telemetry.track_performance('compliance_check_time', execution_time, {
+                    'rule_count': len(rules),
+                    'standards_checked': len(result.standards_checked),
+                    'rag_used': result.rag_context_used
+                })
+                
+                return jsonify({
+                    'success': True,
+                    'compliance_id': result.id,
+                    'result': result.dict()
+                })
+            except Exception as compliance_error:
+                execution_time = time.time() - start_time
+                error_message = str(compliance_error)
+                
+                # Track telemetry error
+                telemetry.track_error('compliance_check_failed', {
+                    'error': error_message,
+                    'rule_count': len(rules)
+                })
+                
+                logger.error(f"Compliance check failed: {error_message}")
+                return jsonify({
+                    'success': False,
+                    'error': 'Compliance check failed',
+                    'details': error_message
+                }), 500
+
+        except Exception as e:
+            logger.error(f"Compliance check endpoint error: {e}")
+            telemetry.track_error('compliance_endpoint_error', {'error': str(e)})
+            return jsonify({'error': 'Failed to check compliance', 'details': str(e)}), 500
+
+    @api.route('/api/v1/telemetry/config', methods=['GET'])
+    def get_telemetry_config_endpoint():
+        """Get telemetry configuration"""
+        
+        try:
+            config = get_telemetry_config()
+            return jsonify({
+                'success': True,
+                'config': config.get_config()
+            })
+        except Exception as e:
+            logger.error(f"Failed to get telemetry config: {e}")
+            return jsonify({'error': 'Failed to get telemetry config', 'details': str(e)}), 500
+
+    @api.route('/api/v1/telemetry/config', methods=['POST'])
+    def update_telemetry_config():
+        """Update telemetry configuration"""
+        
+        try:
+            data = request.get_json()
+            enabled = data.get('enabled', True)
+            use_opentelemetry = data.get('use_opentelemetry')
+            
+            config = get_telemetry_config()
+            config.set_enabled(enabled)
+            
+            # Update OpenTelemetry setting if provided
+            if use_opentelemetry is not None:
+                old_value = config.is_opentelemetry_enabled()
+                config.set_opentelemetry_enabled(use_opentelemetry)
+                
+                # If OpenTelemetry setting changed, reset collector to pick up new config
+                if old_value != use_opentelemetry:
+                    try:
+                        from telemetry import _reset_collector
+                        _reset_collector()
+                        logger.info(f"Telemetry collector reset due to OpenTelemetry config change: {use_opentelemetry}")
+                    except Exception as e:
+                        logger.warning(f"Failed to reset collector: {e}")
+            
+            return jsonify({
+                'success': True,
+                'config': config.get_config(),
+                'message': 'Config updated. Note: OpenTelemetry instrumentation requires server restart for full effect.'
+            })
+        except Exception as e:
+            logger.error(f"Failed to update telemetry config: {e}")
+            return jsonify({'error': 'Failed to update telemetry config', 'details': str(e)}), 500
+
+    @api.route('/api/v1/telemetry/events', methods=['GET'])
+    def get_telemetry_events():
+        """Get telemetry events"""
+        
+        try:
+            collector = get_telemetry_collector()
+            
+            event_type = request.args.get('event_type')
+            hours = int(request.args.get('hours', 24))
+            limit = int(request.args.get('limit', 1000))
+            
+            events = collector.get_events(
+                event_type=event_type,
+                hours=hours,
+                limit=limit
+            )
+            
+            return jsonify({
+                'success': True,
+                'events': events,
+                'count': len(events)
+            })
+        except Exception as e:
+            logger.error(f"Failed to get telemetry events: {e}")
+            return jsonify({'error': 'Failed to get telemetry events', 'details': str(e)}), 500
+
+    @api.route('/api/v1/telemetry/stats', methods=['GET'])
+    def get_telemetry_stats():
+        """Get telemetry statistics"""
+        
+        try:
+            collector = get_telemetry_collector()
+            hours = int(request.args.get('hours', 24))
+            
+            stats = collector.get_stats(hours=hours)
+            
+            return jsonify({
+                'success': True,
+                'stats': stats
+            })
+        except Exception as e:
+            logger.error(f"Failed to get telemetry stats: {e}")
+            return jsonify({'error': 'Failed to get telemetry stats', 'details': str(e)}), 500
+
+    @api.route('/api/v1/telemetry/events', methods=['DELETE'])
+    def clear_telemetry_events():
+        """Clear all telemetry events"""
+        
+        try:
+            collector = get_telemetry_collector()
+            count = collector.clear_events()
+            
+            return jsonify({
+                'success': True,
+                'message': f'Cleared {count} events'
+            })
+        except Exception as e:
+            logger.error(f"Failed to clear telemetry events: {e}")
+            return jsonify({'error': 'Failed to clear telemetry events', 'details': str(e)}), 500
 
     @api.route('/api/v1/recommendations/similar', methods=['POST'])
     async def get_similar_recommendations():

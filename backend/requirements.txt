@@ -60,6 +60,17 @@ mypy==1.7.1
 structlog==23.2.0
 sentry-sdk[flask]==1.38.0
 
+# OpenTelemetry for observability (core packages)
+opentelemetry-api>=1.24.0,<2.0.0
+opentelemetry-sdk>=1.24.0,<2.0.0
+opentelemetry-instrumentation-flask>=0.45b0,<1.0.0
+opentelemetry-instrumentation-requests>=0.45b0,<1.0.0
+opentelemetry-semantic-conventions>=0.45b0,<1.0.0
+# Note: GCP exporters are optional (app will fall back to custom collector if not available)
+# To enable GCP export, install separately with: pip install --pre opentelemetry-exporter-gcp-monitoring opentelemetry-exporter-gcp-trace
+# opentelemetry-exporter-gcp-monitoring>=1.11.0a0  # Pre-release only
+# opentelemetry-exporter-gcp-trace>=1.11.0,<2.0.0  # Stable version available
+
 # Azure integration (for multi-cloud support)
 azure-identity==1.15.0
 azure-mgmt-network==25.1.0

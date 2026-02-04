@@ -4,6 +4,7 @@ import CachePerformancePanel from '@/components/cache-performance-panel';
 import AnalysisTrackingPanel from '@/components/analysis-tracking-panel';
 import ModelSelectorPanel from '@/components/model-selector-panel';
 import RAGDocumentManager from '@/components/rag-document-manager';
+import TelemetryPanel from '@/components/telemetry-panel';
 import AuthGate from '@/components/auth-gate';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,9 @@ export default function Home() {
               <AdminStatusPanel />
               <div className="mt-6">
                 <ModelSelectorPanel />
+              </div>
+              <div className="mt-6">
+                <TelemetryPanel />
               </div>
               <div className="mt-6">
                 <RAGDocumentManager />

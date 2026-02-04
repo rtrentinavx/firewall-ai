@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class AnalysisTracker:
     """Tracks analysis agent calls and usage statistics"""
     
-    def __init__(self):
+    def __init__(self) -> None:
         self._lock = threading.Lock()
         self._calls: List[Dict[str, Any]] = []
         self._max_entries = 10000  # Keep last 10k calls
