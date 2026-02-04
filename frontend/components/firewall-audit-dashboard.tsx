@@ -103,8 +103,15 @@ export default function FirewallAuditDashboard() {
   };
 
   const handleLoadSampleData = () => {
-    const sampleRules = utils.generateSampleRules(selectedProvider || 'gcp');
-    setRules(sampleRules);
+    try {
+      const sampleRules = utils.generateSampleRules(selectedProvider || 'gcp');
+      console.log('Loading sample rules:', sampleRules);
+      setRules(sampleRules);
+      setError(null); // Clear any previous errors
+    } catch (err) {
+      console.error('Failed to load sample rules:', err);
+      setError('Failed to load sample rules. Please try again.');
+    }
   };
 
   const handleExportRules = () => {

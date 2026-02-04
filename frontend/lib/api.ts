@@ -1,5 +1,5 @@
 import axios, { AxiosResponse } from 'axios';
-import { ApiResponse, AuditRequest, AuditResult, FirewallRule, NormalizedRule, CacheStats } from '@/types';
+import { ApiResponse, AuditRequest, AuditResult, FirewallRule, NormalizedRule, CacheStats, CloudProvider } from '@/types';
 
 // Create axios instance with base configuration
 const api = axios.create({
@@ -191,25 +191,29 @@ export const utils = {
 
   // Generate sample rules for testing
   generateSampleRules: (provider: string = 'gcp'): FirewallRule[] => {
+    const validProvider = provider as CloudProvider;
+    const timestamp = Date.now();
+    
     const baseRules: FirewallRule[] = [
       {
-        id: 'rule-1',
+        id: `sample-rule-1-${timestamp}`,
         name: 'allow-ssh',
         description: 'Allow SSH access from anywhere',
-        cloud_provider: provider as any,
+        cloud_provider: validProvider,
         direction: 'ingress',
         action: 'allow',
         priority: 1000,
         source_ranges: ['0.0.0.0/0'],
         protocols: ['tcp'],
         ports: ['22'],
-        target_tags: ['web-server']
+        target_tags: ['web-server'],
+        logging_enabled: true
       },
       {
-        id: 'rule-2',
+        id: `sample-rule-2-${timestamp}`,
         name: 'allow-http',
         description: 'Allow HTTP access',
-        cloud_provider: provider as any,
+        cloud_provider: validProvider,
         direction: 'ingress',
         action: 'allow',
         priority: 1001,
@@ -217,6 +221,31 @@ export const utils = {
         protocols: ['tcp'],
         ports: ['80'],
         target_tags: ['web-server']
+      },
+      {
+        id: `sample-rule-3-${timestamp}`,
+        name: 'allow-https',
+        description: 'Allow HTTPS access',
+        cloud_provider: validProvider,
+        direction: 'ingress',
+        action: 'allow',
+        priority: 1002,
+        source_ranges: ['0.0.0.0/0'],
+        protocols: ['tcp'],
+        ports: ['443'],
+        target_tags: ['web-server']
+      },
+      {
+        id: `sample-rule-4-${timestamp}`,
+        name: 'deny-all-egress',
+        description: 'Deny all outbound traffic (restrictive example)',
+        cloud_provider: validProvider,
+        direction: 'egress',
+        action: 'deny',
+        priority: 65534,
+        source_ranges: [],
+        protocols: ['all'],
+        ports: []
       }
     ];
 
