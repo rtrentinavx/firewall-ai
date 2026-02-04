@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add automatic changelog generation workflow
 - Add comprehensive service connectivity health checks
+- Add compliance agent with RAG integration and OpenTelemetry support
 
 ### 🎨 Styling
 
@@ -50,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 📚 Documentation
 
+- Update CHANGELOG.md
 - Update CHANGELOG.md
 - Update CHANGELOG.md
 - Update CHANGELOG.md
