@@ -7,6 +7,7 @@ This directory contains all project documentation organized by topic.
 ### 🗺️ Planning & Strategy
 - **[Roadmap](ROADMAP.md)** - Comprehensive roadmap for performance, cost optimization, multi-agent orchestration, HITL, and learning improvements
 - **[Contributing Guide](CONTRIBUTING.md)** - Branch workflow, commit guidelines, and development process
+- **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Common issues and solutions
 
 ### 🔧 Development
 - **[Development Tools](development/DEV_TOOLS.md)** - Setup and usage of development tools
