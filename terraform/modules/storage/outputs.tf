@@ -13,3 +13,11 @@ output "terraform_exports_bucket_name" {
 output "audit_reports_bucket_name" {
   value = google_storage_bucket.audit_reports.name
 }
+
+output "rag_documents_bucket_name" {
+  value = google_storage_bucket.rag_documents.name
+}
+
+output "rag_indices_bucket_name" {
+  value = google_storage_bucket.rag_indices.name
+}

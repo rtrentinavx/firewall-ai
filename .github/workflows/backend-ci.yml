@@ -51,7 +51,7 @@ jobs:
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
       - name: Run type checking
-        run: mypy . --ignore-missing-imports
+        run: mypy .
 
       - name: Run tests
         run: |
@@ -94,7 +94,7 @@ jobs:
           safety check --output json > safety-results.json || true
 
       - name: Upload security results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: backend-security-results
           path: |

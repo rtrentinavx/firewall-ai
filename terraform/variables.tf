@@ -3,12 +3,6 @@ variable "project_id" {
   type        = string
 }
 
-variable "project_name" {
-  description = "Human-readable project name"
-  type        = string
-  default     = "Firewall Auditor"
-}
-
 variable "region" {
   description = "GCP region for resources"
   type        = string
@@ -21,23 +15,17 @@ variable "environment" {
   default     = "prod"
 }
 
-variable "org_id" {
-  description = "GCP Organization ID (optional)"
-  type        = string
-  default     = ""
-}
-
 # Application Configuration
 variable "backend_image" {
-  description = "Docker image for backend (will be built by Cloud Build)"
+  description = "Docker image for backend (GitHub Actions will update this)"
   type        = string
-  default     = "gcr.io/PROJECT_ID/firewall-auditor-backend:latest"
+  default     = "gcr.io/cloudrun/hello"
 }
 
 variable "frontend_image" {
-  description = "Docker image for frontend (will be built by Cloud Build)"
+  description = "Docker image for frontend (GitHub Actions will update this)"
   type        = string
-  default     = "gcr.io/PROJECT_ID/firewall-auditor-frontend:latest"
+  default     = "gcr.io/cloudrun/hello"
 }
 
 variable "backend_cpu" {
@@ -159,12 +147,6 @@ variable "enable_shadow_mode" {
   default     = true
 }
 
-variable "enable_cloud_armor" {
-  description = "Enable Cloud Armor DDoS protection"
-  type        = bool
-  default     = true
-}
-
 variable "enable_vpc_connector" {
   description = "Enable Serverless VPC Access"
   type        = bool
@@ -176,7 +158,7 @@ variable "labels" {
   description = "Labels to apply to all resources"
   type        = map(string)
   default = {
-    application = "firewall-auditor"
+    application = "firewall-ai"
     managed-by  = "terraform"
   }
 }

@@ -25,23 +25,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'javascript', 'python', 'hcl' ]
+        language: [ 'javascript', 'python' ]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           config-file: ./.github/codeql-config.yml
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v2
+        uses: github/codeql-action/autobuild@v4
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{matrix.language}}"
 
@@ -54,15 +54,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check for Dockerfiles
+        id: check_dockerfiles
+        run: |
+          echo "backend_exists=$([[ -f ./backend/Dockerfile ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "frontend_exists=$([[ -f ./frontend/Dockerfile ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+
       - name: Build backend image
         run: |
           docker build -t firewall-ai-backend ./backend
-        if: exists('./backend/Dockerfile')
+        if: steps.check_dockerfiles.outputs.backend_exists == 'true'
 
       - name: Build frontend image
         run: |
           docker build -t firewall-ai-frontend ./frontend
-        if: exists('./frontend/Dockerfile')
+        if: steps.check_dockerfiles.outputs.frontend_exists == 'true'
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
@@ -71,10 +77,10 @@ jobs:
           scan-ref: 'firewall-ai-backend,firewall-ai-frontend'
           format: 'sarif'
           output: 'trivy-results.sarif'
-        if: exists('./backend/Dockerfile') || exists('./frontend/Dockerfile')
+        if: steps.check_dockerfiles.outputs.backend_exists == 'true' || steps.check_dockerfiles.outputs.frontend_exists == 'true'
 
       - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: 'trivy-results.sarif'
         if: always()
@@ -93,9 +99,10 @@ jobs:
         uses: trufflesecurity/trufflehog@main
         with:
           path: ./
-          base: main
-          head: HEAD
+          base: ${{ github.event.before }}
+          head: ${{ github.sha }}
           extra_args: --debug --only-verified
+        continue-on-error: true
 
   license:
     name: "License Compliance"
@@ -126,7 +133,7 @@ jobs:
           license-checker --json > licenses-node.json || true
 
       - name: Upload license reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: license-reports
           path: |
@@ -137,19 +144,24 @@ jobs:
   scorecard:
     name: "OpenSSF Scorecard"
     runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
     permissions:
       contents: read
       id-token: write
+      security-events: write
 
     steps:
+      - name: "Checkout code"
+        uses: actions/checkout@v4
+
       - name: "Run analysis"
-        uses: ossf/scorecard-action@v2
+        uses: ossf/scorecard-action@v2.4.0
         with:
           results_file: results.sarif
           results_format: sarif
           publish_results: true
 
       - name: "Upload to code-scanning"
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: results.sarif

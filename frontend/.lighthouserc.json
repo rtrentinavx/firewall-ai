@@ -2,8 +2,9 @@
   "ci": {
     "collect": {
       "numberOfRuns": 3,
-      "startServerCommand": "npm run start",
+      "startServerCommand": "npm start",
       "startServerReadyPattern": "ready on",
+      "startServerReadyTimeout": 60000,
       "url": ["http://localhost:3000"]
     },
     "assert": {

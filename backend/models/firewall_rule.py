@@ -116,3 +116,41 @@ class NormalizedRule(BaseModel):
     schema_version: str = "1.0"
     normalization_timestamp: datetime = Field(default_factory=datetime.utcnow)
     confidence_score: float = Field(ge=0.0, le=1.0, default=1.0)
+
+
+class ComplianceStandard(BaseModel):
+    """Represents a compliance standard or framework"""
+    name: str  # e.g., "CIS", "NIST", "PCI-DSS", "SOC 2"
+    version: Optional[str] = None
+    requirement_id: Optional[str] = None
+    description: str
+    source: str  # Document title or URL
+
+
+class ComplianceCheck(BaseModel):
+    """Result of a compliance check for a rule"""
+    rule_id: str
+    rule_name: str
+    standard: ComplianceStandard
+    compliant: bool
+    severity: ViolationSeverity
+    finding: str
+    recommendation: str
+    evidence: List[str] = Field(default_factory=list)  # Supporting evidence from RAG
+    risk_score: float = Field(ge=0.0, le=10.0)
+
+
+class ComplianceResult(BaseModel):
+    """Overall compliance assessment result"""
+    id: str = Field(default_factory=lambda: f"compliance_{datetime.utcnow().isoformat()}")
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    cloud_provider: CloudProvider
+    total_rules: int
+    compliant_rules: int
+    non_compliant_rules: int
+    checks: List[ComplianceCheck] = Field(default_factory=list)
+    standards_checked: List[str] = Field(default_factory=list)
+    overall_compliance_score: float = Field(ge=0.0, le=100.0)
+    summary: Dict[str, Any] = Field(default_factory=dict)
+    rag_context_used: bool = False
+    rag_documents_count: int = 0

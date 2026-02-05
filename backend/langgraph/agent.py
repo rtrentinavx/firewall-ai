@@ -6,13 +6,21 @@ Implements the Agentic SDLC workflow for firewall rule analysis
 import logging
 import json
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, cast
 from pydantic import BaseModel
 
-from models.firewall_rule import FirewallRule, AuditResult
+from models.firewall_rule import (
+    FirewallRule,
+    AuditResult,
+    RuleViolation,
+    Recommendation,
+    ViolationSeverity,
+    CloudProvider
+)
 from normalization.engine import NormalizationEngine
 from caching.context_cache import ContextCache
 from caching.semantic_cache import SemanticCache
+from rag.knowledge_base import RAGKnowledgeBase
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +38,7 @@ class AuditState(BaseModel):
 class FirewallAuditAgent:
     """Main agent orchestrating the firewall audit workflow using LangGraph"""
 
-    def __init__(self):
+    def __init__(self, rag_knowledge_base: Optional[RAGKnowledgeBase] = None):
         # Temporarily disable LLM integration to avoid pandas compatibility issues
         # self.llm = VertexAI(
         #     model_name="gemini-1.5-pro",
@@ -41,6 +49,7 @@ class FirewallAuditAgent:
         self.normalization_engine = NormalizationEngine()
         self.context_cache = ContextCache()
         self.semantic_cache = SemanticCache()
+        self.rag_knowledge_base = rag_knowledge_base
 
         # Build the audit workflow graph
         self.workflow = self._build_workflow()
@@ -50,29 +59,32 @@ class FirewallAuditAgent:
         # For now, return a mock workflow that doesn't use LangGraph
         # This allows the server to start while we resolve dependency issues
         return None
-        """Build the LangGraph workflow for firewall auditing"""
-
-        workflow = StateGraph(AuditState)
-
-        # Add nodes
-        workflow.add_node("ingest_and_normalize", self._ingest_and_normalize)
-        workflow.add_node("check_semantic_cache", self._check_semantic_cache)
-        workflow.add_node("analyze_intent", self._analyze_intent)
-        workflow.add_node("detect_violations", self._detect_violations)
-        workflow.add_node("generate_recommendations", self._generate_recommendations)
-        workflow.add_node("create_audit_result", self._create_audit_result)
-
-        # Define the workflow edges
-        workflow.set_entry_point("ingest_and_normalize")
-
-        workflow.add_edge("ingest_and_normalize", "check_semantic_cache")
-        workflow.add_edge("check_semantic_cache", "analyze_intent")
-        workflow.add_edge("analyze_intent", "detect_violations")
-        workflow.add_edge("detect_violations", "generate_recommendations")
-        workflow.add_edge("generate_recommendations", "create_audit_result")
-        workflow.add_edge("create_audit_result", END)
-
-        return workflow.compile()
+        # TODO: Re-enable LangGraph workflow once dependencies are resolved
+        # """Build the LangGraph workflow for firewall auditing"""
+        #
+        # from langgraph.graph import END, StateGraph
+        #
+        # workflow = StateGraph(AuditState)
+        #
+        # # Add nodes
+        # workflow.add_node("ingest_and_normalize", self._ingest_and_normalize)
+        # workflow.add_node("check_semantic_cache", self._check_semantic_cache)
+        # workflow.add_node("analyze_intent", self._analyze_intent)
+        # workflow.add_node("detect_violations", self._detect_violations)
+        # workflow.add_node("generate_recommendations", self._generate_recommendations)
+        # workflow.add_node("create_audit_result", self._create_audit_result)
+        #
+        # # Define the workflow edges
+        # workflow.set_entry_point("ingest_and_normalize")
+        #
+        # workflow.add_edge("ingest_and_normalize", "check_semantic_cache")
+        # workflow.add_edge("check_semantic_cache", "analyze_intent")
+        # workflow.add_edge("analyze_intent", "detect_violations")
+        # workflow.add_edge("detect_violations", "generate_recommendations")
+        # workflow.add_edge("generate_recommendations", "create_audit_result")
+        # workflow.add_edge("create_audit_result", END)
+        #
+        # return workflow.compile()
 
     async def audit_firewall_rules(
         self,
@@ -85,42 +97,84 @@ class FirewallAuditAgent:
         logger.info(f"Starting audit for {len(rules)} rules with intent: {intent}")
 
         # Check context cache first
-        cache_key = self.context_cache.generate_key(rules, intent)
+        # Convert FirewallRule objects to dictionaries for cache key generation
+        rules_dict = [rule.dict() for rule in rules]
+        cache_key = self.context_cache.generate_key(rules_dict, intent)
         cached_result = await self.context_cache.get(cache_key)
 
         if cached_result:
             logger.info("Returning cached audit result")
-            return cached_result
+            # Type cast since cache returns Any
+            return cast(AuditResult, cached_result)
 
         # For now, return mock audit results to allow server to start
         # TODO: Re-enable full LangGraph workflow once pandas compatibility is resolved
         mock_violations = [
-            {
-                "rule_id": "mock-rule-1",
-                "severity": "medium",
-                "description": "Mock security violation for testing",
-                "recommendation": "Review and tighten firewall rules"
-            }
+            RuleViolation(
+                rule_id="mock-rule-1",
+                rule_name="mock-rule-1",
+                severity=ViolationSeverity.MEDIUM,
+                category="security",
+                description="Mock security violation for testing",
+                reason="Test violation",
+                remediation="Review and tighten firewall rules",
+                risk_score=5.0
+            )
         ]
 
         mock_recommendations = [
-            {
-                "type": "security",
-                "priority": "high",
-                "description": "Implement principle of least privilege",
-                "action": "Restrict source IP ranges to specific subnets"
-            }
+            Recommendation(
+                id="mock-rec-1",
+                rule_id="mock-rule-1",
+                title="Implement principle of least privilege",
+                description="Restrict source IP ranges to specific subnets",
+                terraform_code="# Example terraform code",
+                explanation="This reduces attack surface",
+                risk_reduction=3.0,
+                effort_level="medium"
+            )
         ]
 
+        # Determine cloud provider from rules
+        provider = CloudProvider.GCP
+        if rules:
+            provider = rules[0].cloud_provider
+
+        # Retrieve relevant context from RAG knowledge base if available
+        rag_context = []
+        if self.rag_knowledge_base:
+            try:
+                # Search for relevant documents based on intent and provider
+                search_query = f"{intent} {provider.value} firewall security"
+                rag_results = self.rag_knowledge_base.search(search_query, limit=3, min_score=0.4)
+                rag_context = [
+                    {
+                        'content': result['chunk']['content'],
+                        'source': result['document']['title'] if result['document'] else 'Unknown',
+                        'relevance': result['relevance'],
+                        'score': result['score']
+                    }
+                    for result in rag_results
+                ]
+                if rag_context:
+                    logger.info(f"Retrieved {len(rag_context)} relevant documents from RAG knowledge base")
+            except Exception as e:
+                logger.warning(f"Failed to retrieve RAG context: {e}")
+
         audit_result = AuditResult(
-            timestamp=datetime.now(),
-            rules_analyzed=len(rules),
+            total_rules=len(rules),
             violations_found=len(mock_violations),
+            recommendations=len(mock_recommendations),
+            intent=intent,
+            cloud_provider=provider,
             violations=mock_violations,
-            recommendations=mock_recommendations,
-            compliance_score=85.0,
-            risk_level="medium"
+            recommendations_list=mock_recommendations
         )
+        
+        # Add RAG context to audit result summary if available
+        if rag_context:
+            audit_result.summary['rag_context'] = rag_context
+            audit_result.summary['rag_documents_used'] = len(rag_context)
 
         # Cache the result
         await self.context_cache.set(cache_key, audit_result)

@@ -1,3 +1,13 @@
+terraform {
+  required_version = ">= 1.6.0"
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.0"
+    }
+  }
+}
+
 variable "project_id" {
   type = string
 }
@@ -10,13 +20,9 @@ variable "backend_service" {
   type = string
 }
 
-variable "frontend_service" {
-  type = string
-}
-
 # Notification Channel - Email
 resource "google_monitoring_notification_channel" "email" {
-  display_name = "Firewall Auditor Email Alerts"
+  display_name = "Firewall AI Email Alerts"
   type         = "email"
   project      = var.project_id
 
@@ -27,7 +33,7 @@ resource "google_monitoring_notification_channel" "email" {
 
 # Alert Policy - High Error Rate
 resource "google_monitoring_alert_policy" "high_error_rate" {
-  display_name = "Firewall Auditor - High Error Rate"
+  display_name = "Firewall AI - High Error Rate"
   project      = var.project_id
   combiner     = "OR"
 
@@ -56,7 +62,7 @@ resource "google_monitoring_alert_policy" "high_error_rate" {
 
 # Alert Policy - High Latency
 resource "google_monitoring_alert_policy" "high_latency" {
-  display_name = "Firewall Auditor - High Latency"
+  display_name = "Firewall AI - High Latency"
   project      = var.project_id
   combiner     = "OR"
 
@@ -105,7 +111,7 @@ resource "google_logging_metric" "audit_completions" {
 # Dashboard
 resource "google_monitoring_dashboard" "main" {
   dashboard_json = jsonencode({
-    displayName = "Firewall Auditor - Operations Dashboard"
+    displayName = "Firewall AI - Operations Dashboard"
     mosaicLayout = {
       columns = 12
       tiles = [

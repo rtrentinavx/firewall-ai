@@ -1,3 +1,13 @@
+terraform {
+  required_version = ">= 1.6.0"
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.0"
+    }
+  }
+}
+
 variable "project_id" {
   type = string
 }
@@ -14,6 +24,33 @@ variable "labels" {
   type = map(string)
 }
 
+# Logs bucket for access logging (destination for other buckets' logging)
+resource "google_storage_bucket" "logs" {
+  # checkov:skip=CKV_GCP_62:This bucket is the log destination; logging would require a separate audit bucket
+  name          = "${var.project_id}-logs-${var.resource_suffix}"
+  location      = var.region
+  project       = var.project_id
+  force_destroy = false
+
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+
+  versioning {
+    enabled = true
+  }
+
+  lifecycle_rule {
+    condition {
+      age = 30
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
+  labels = var.labels
+}
+
 # Main storage bucket for firewall configs
 resource "google_storage_bucket" "firewall_configs" {
   name          = "${var.project_id}-firewall-configs-${var.resource_suffix}"
@@ -23,8 +60,14 @@ resource "google_storage_bucket" "firewall_configs" {
 
   uniform_bucket_level_access = true
 
+  public_access_prevention = "enforced"
+
   versioning {
     enabled = true
+  }
+
+  logging {
+    log_bucket = google_storage_bucket.logs.name
   }
 
   lifecycle_rule {
@@ -58,6 +101,16 @@ resource "google_storage_bucket" "embeddings" {
 
   uniform_bucket_level_access = true
 
+  public_access_prevention = "enforced"
+
+  versioning {
+    enabled = true
+  }
+
+  logging {
+    log_bucket = google_storage_bucket.logs.name
+  }
+
   labels = var.labels
 }
 
@@ -70,8 +123,14 @@ resource "google_storage_bucket" "terraform_exports" {
 
   uniform_bucket_level_access = true
 
+  public_access_prevention = "enforced"
+
   versioning {
     enabled = true
+  }
+
+  logging {
+    log_bucket = google_storage_bucket.logs.name
   }
 
   labels = var.labels
@@ -85,6 +144,68 @@ resource "google_storage_bucket" "audit_reports" {
   force_destroy = false
 
   uniform_bucket_level_access = true
+
+  public_access_prevention = "enforced"
+
+  versioning {
+    enabled = true
+  }
+
+  logging {
+    log_bucket = google_storage_bucket.logs.name
+  }
+
+  labels = var.labels
+}
+
+# Bucket for RAG documents
+resource "google_storage_bucket" "rag_documents" {
+  name          = "${var.project_id}-rag-documents-${var.resource_suffix}"
+  location      = var.region
+  project       = var.project_id
+  force_destroy = false
+
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+
+  versioning {
+    enabled = true
+  }
+
+  logging {
+    log_bucket = google_storage_bucket.logs.name
+  }
+
+  lifecycle_rule {
+    condition {
+      age = 90
+    }
+    action {
+      type          = "SetStorageClass"
+      storage_class = "NEARLINE"
+    }
+  }
+
+  labels = var.labels
+}
+
+# Bucket for RAG FAISS indices
+resource "google_storage_bucket" "rag_indices" {
+  name          = "${var.project_id}-rag-indices-${var.resource_suffix}"
+  location      = var.region
+  project       = var.project_id
+  force_destroy = false
+
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+
+  versioning {
+    enabled = true
+  }
+
+  logging {
+    log_bucket = google_storage_bucket.logs.name
+  }
 
   labels = var.labels
 }

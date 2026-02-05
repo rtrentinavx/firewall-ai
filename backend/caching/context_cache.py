@@ -195,10 +195,10 @@ class ContextCache:
     def _find_common_patterns(self, batch_rules: List[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
         """Find common rule patterns across a batch"""
 
-        patterns = []
+        patterns: List[Dict[str, Any]] = []
 
         # Simple pattern detection - rules that appear in multiple configs
-        rule_counts = {}
+        rule_counts: Dict[str, int] = {}
         for rule_set in batch_rules:
             for rule in rule_set:
                 rule_key = self._hash_single_rule(rule)
@@ -206,7 +206,8 @@ class ContextCache:
 
         # Patterns that appear in more than one config
         common_rules = [
-            rule_key for rule_key, count in rule_counts.items()
+            {"rule_key": rule_key, "count": count}
+            for rule_key, count in rule_counts.items()
             if count > 1
         ]
 

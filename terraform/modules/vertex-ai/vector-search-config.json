@@ -1,0 +1,1 @@
+{"config":{"algorithmConfig":{"treeAhConfig":{"leafNodeEmbeddingCount":1000,"leafNodesToSearchPercent":10}},"approximateNeighborsCount":10,"dimensions":768,"distanceMeasureType":"DOT_PRODUCT_DISTANCE"},"contentsDeltaUri":"gs://rtrentin-01-embeddings-ca67e4c0/embeddings/"}

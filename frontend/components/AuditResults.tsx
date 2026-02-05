@@ -1,20 +1,49 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle, AlertTriangle, XCircle, Info, ThumbsUp, ThumbsDown, Clock } from 'lucide-react';
-import { AuditResult, Violation, Recommendation } from '@/types';
+import { CheckCircle, AlertTriangle, XCircle, Info, ThumbsUp, ThumbsDown, Clock, Copy, Download, FileCode } from 'lucide-react';
+import { AuditResult, Violation, Recommendation, FirewallRule, CloudProvider } from '@/types';
+import { utils } from '@/lib/api';
 
 interface AuditResultsProps {
   result: AuditResult;
+  rules?: FirewallRule[]; // Rules that were analyzed
+  provider?: CloudProvider; // Cloud provider for Terraform generation
 }
 
-export function AuditResults({ result }: AuditResultsProps) {
+export function AuditResults({ result, rules = [], provider = 'gcp' }: AuditResultsProps) {
+  const [showTerraform, setShowTerraform] = useState(false);
+  
+  // Generate Terraform code from analyzed rules
+  const terraformCode = rules.length > 0 
+    ? utils.generateTerraformCode(rules, provider)
+    : null;
+
+  const handleCopyTerraform = async () => {
+    if (terraformCode) {
+      await navigator.clipboard.writeText(terraformCode);
+    }
+  };
+
+  const handleDownloadTerraform = () => {
+    if (terraformCode) {
+      const blob = new Blob([terraformCode], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `firewall-rules-${provider}-${Date.now()}.tf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  };
   const getSeverityIcon = (severity: string) => {
     switch (severity.toLowerCase()) {
       case 'high': return <XCircle className="h-5 w-5 text-red-500" />;
@@ -234,6 +263,56 @@ export function AuditResults({ result }: AuditResultsProps) {
               </div>
             </ScrollArea>
           </CardContent>
+        </Card>
+      )}
+
+      {/* Terraform Code Generation */}
+      {terraformCode && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <FileCode className="h-5 w-5 text-blue-500" />
+                  Generated Terraform Code
+                </CardTitle>
+                <CardDescription>
+                  Terraform configuration for the analyzed firewall rules
+                </CardDescription>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleCopyTerraform} variant="outline" size="sm">
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy
+                </Button>
+                <Button onClick={handleDownloadTerraform} variant="outline" size="sm">
+                  <Download className="h-4 w-4 mr-2" />
+                  Download
+                </Button>
+                <Button 
+                  onClick={() => setShowTerraform(!showTerraform)} 
+                  variant="outline" 
+                  size="sm"
+                >
+                  {showTerraform ? 'Hide' : 'Show'} Code
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          {showTerraform && (
+            <CardContent>
+              <div className="rounded-lg border bg-slate-900 p-4">
+                <ScrollArea className="h-[400px]">
+                  <pre className="text-xs text-slate-100 font-mono whitespace-pre-wrap">
+                    {terraformCode}
+                  </pre>
+                </ScrollArea>
+              </div>
+              <div className="mt-3 text-xs text-gray-500">
+                <p>💡 Copy this Terraform code and apply it to your infrastructure using <code className="bg-gray-100 px-1 rounded">terraform apply</code></p>
+              </div>
+            </CardContent>
+          )}
         </Card>
       )}
 

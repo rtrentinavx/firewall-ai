@@ -30,6 +30,7 @@ build/
 *.tsbuildinfo
 venv/
 .venv/
+.venv-ci/
 env/
 **/venv/
 **/.venv/
@@ -71,3 +72,4 @@ pnpm-debug.log*
 *.a
 *.so
 *.dylib
+github-actions-key.json

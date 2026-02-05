@@ -39,12 +39,41 @@ locals {
 
 # Service Account for Cloud Run services
 resource "google_service_account" "firewall_auditor" {
-  account_id   = "firewall-auditor-sa"
-  display_name = "Firewall Auditor Service Account"
-  description  = "Service account for Firewall Auditor application"
+  account_id   = "firewall-ai-sa"
+  display_name = "Firewall AI Service Account"
+  description  = "Service account for Firewall AI application"
   project      = var.project_id
 
   depends_on = [google_project_service.required_apis]
+}
+
+# Service Account for GitHub Actions CI/CD
+resource "google_service_account" "github_actions" {
+  account_id   = "github-actions"
+  display_name = "GitHub Actions"
+  description  = "Service account for GitHub Actions CI/CD pipeline"
+  project      = var.project_id
+
+  depends_on = [google_project_service.required_apis]
+}
+
+# IAM Roles for GitHub Actions Service Account
+# checkov:skip=CKV_GCP_49:Service account user role required for Cloud Run deployments
+# checkov:skip=CKV_GCP_41:Service Account User required for GitHub Actions to deploy Cloud Run services
+resource "google_project_iam_member" "github_actions_roles" {
+  for_each = toset([
+    "roles/run.admin",
+    "roles/storage.admin",
+    "roles/cloudbuild.builds.editor", # checkov:skip=CKV_GCP_49:Required for building container images
+    "roles/iam.serviceAccountUser",   # checkov:skip=CKV_GCP_41:Required for GitHub Actions to deploy Cloud Run
+    "roles/artifactregistry.admin",
+    "roles/compute.admin",
+    "roles/secretmanager.admin"
+  ])
+
+  project = var.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.github_actions.email}"
 }
 
 # IAM Roles for Service Account
@@ -87,8 +116,12 @@ module "secrets" {
   azure_client_id       = var.azure_client_id
   azure_client_secret   = var.azure_client_secret
   slack_webhook_url     = var.slack_webhook_url
+  service_account_email = google_service_account.firewall_auditor.email
 
-  depends_on = [google_project_service.required_apis]
+  depends_on = [
+    google_project_service.required_apis,
+    google_service_account.firewall_auditor
+  ]
 }
 
 module "firestore" {
@@ -103,10 +136,9 @@ module "firestore" {
 module "vertex_ai" {
   source = "./modules/vertex-ai"
 
-  project_id      = var.project_id
-  region          = var.region
-  bucket_name     = module.storage.embeddings_bucket_name
-  resource_suffix = local.resource_suffix
+  project_id  = var.project_id
+  region      = var.region
+  bucket_name = module.storage.embeddings_bucket_name
 
   depends_on = [
     google_project_service.required_apis,
@@ -119,12 +151,12 @@ module "networking" {
 
   count = var.enable_vpc_connector ? 1 : 0
 
-  project_id      = var.project_id
-  region          = var.region
-  vpc_name        = var.vpc_name
-  subnet_name     = var.subnet_name
-  connector_name  = var.connector_name
-  ip_cidr_range   = var.ip_cidr_range
+  project_id     = var.project_id
+  region         = var.region
+  vpc_name       = var.vpc_name
+  subnet_name    = var.subnet_name
+  connector_name = var.connector_name
+  ip_cidr_range  = var.ip_cidr_range
 
   depends_on = [google_project_service.required_apis]
 }
@@ -132,27 +164,30 @@ module "networking" {
 module "cloud_run" {
   source = "./modules/cloud-run"
 
-  project_id              = var.project_id
-  region                  = var.region
-  service_account_email   = google_service_account.firewall_auditor.email
-  backend_image           = replace(var.backend_image, "PROJECT_ID", var.project_id)
-  frontend_image          = replace(var.frontend_image, "PROJECT_ID", var.project_id)
-  backend_cpu             = var.backend_cpu
-  backend_memory          = var.backend_memory
-  frontend_cpu            = var.frontend_cpu
-  frontend_memory         = var.frontend_memory
-  max_backend_instances   = var.max_backend_instances
-  max_frontend_instances  = var.max_frontend_instances
-  enable_shadow_mode      = var.enable_shadow_mode
-  enable_cloud_armor      = var.enable_cloud_armor
-  vpc_connector_id        = var.enable_vpc_connector ? module.networking[0].vpc_connector_id : null
-  gemini_secret_id        = module.secrets.gemini_api_key_secret_id
-  azure_credentials_id    = module.secrets.azure_credentials_secret_id
-  labels                  = local.common_labels
+  project_id             = var.project_id
+  region                 = var.region
+  service_account_email  = google_service_account.firewall_auditor.email
+  backend_image          = replace(var.backend_image, "PROJECT_ID", var.project_id)
+  frontend_image         = replace(var.frontend_image, "PROJECT_ID", var.project_id)
+  backend_cpu            = var.backend_cpu
+  backend_memory         = var.backend_memory
+  frontend_cpu           = var.frontend_cpu
+  frontend_memory        = var.frontend_memory
+  max_backend_instances  = var.max_backend_instances
+  max_frontend_instances = var.max_frontend_instances
+  enable_shadow_mode     = var.enable_shadow_mode
+  vpc_connector_id       = var.enable_vpc_connector ? module.networking[0].vpc_connector_id : null
+  gemini_secret_id       = module.secrets.gemini_api_key_secret_id
+  azure_credentials_id   = module.secrets.azure_credentials_secret_id
+  rag_documents_bucket   = module.storage.rag_documents_bucket_name
+  rag_indices_bucket     = module.storage.rag_indices_bucket_name
+  labels                 = local.common_labels
 
   depends_on = [
     google_project_service.required_apis,
-    module.secrets
+    module.secrets,
+    module.storage,
+    google_project_iam_member.service_account_roles
   ]
 }
 
@@ -177,7 +212,6 @@ module "monitoring" {
   project_id      = var.project_id
   alert_email     = var.alert_email
   backend_service = module.cloud_run.backend_service_name
-  frontend_service = module.cloud_run.frontend_service_name
 
   depends_on = [
     google_project_service.required_apis,

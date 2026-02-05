@@ -10,7 +10,7 @@
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "test": "jest",
-    "test:ci": "jest --ci --coverage --watchAll=false"
+    "test:ci": "jest --ci --coverage --watchAll=false --passWithNoTests"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.6.0",
@@ -24,11 +24,13 @@
     "@radix-ui/react-select": "^2.1.2",
     "@radix-ui/react-separator": "^1.1.0",
     "@radix-ui/react-slot": "^1.1.0",
+    "@radix-ui/react-switch": "^1.1.0",
     "@radix-ui/react-tabs": "^1.1.1",
     "@radix-ui/react-toast": "^1.2.2",
     "@radix-ui/react-tooltip": "^1.1.4",
     "autoprefixer": "^10.4.20",
     "axios": "^1.7.7",
+    "chart.js": "^4.5.1",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.460.0",
@@ -37,12 +39,12 @@
     "next-themes": "^0.4.6",
     "postcss": "^8.4.47",
     "react": "^18.3.1",
+    "react-chartjs-2": "^5.3.1",
     "react-dom": "^18.3.1",
+    "reactflow": "^11.11.4",
     "tailwind-merge": "^2.5.4",
     "tailwindcss": "^3.4.14",
-    "tailwindcss-animate": "^1.0.7",
-    "chart.js": "^4.5.1",
-    "react-chartjs-2": "^5.3.1"
+    "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.1.5",

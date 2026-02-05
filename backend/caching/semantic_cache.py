@@ -6,7 +6,7 @@ Stores approved fixes and retrieves similar recommendations using vector similar
 import logging
 import numpy as np
 import json
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, cast
 from datetime import datetime, timedelta
 from sentence_transformers import SentenceTransformer
 import faiss
@@ -17,11 +17,12 @@ class SemanticCache:
     """Semantic caching using vector similarity for firewall recommendations"""
 
     def __init__(self, model_name: str = "all-MiniLM-L6-v2", max_entries: int = 5000):
+        self.model_name = model_name
         self.model = SentenceTransformer(model_name)
         self.max_entries = max_entries
         self.entries: List[Dict[str, Any]] = []
-        self.vectors = None
-        self.index = None
+        self.vectors: Optional[np.ndarray[Any, np.dtype[np.floating[Any]]]] = None
+        self.index: Optional[faiss.Index] = None
         self.embedding_dim = self.model.get_sentence_embedding_dimension()
 
         # Initialize FAISS index
@@ -81,7 +82,8 @@ class SemanticCache:
 
         if similar_entries:
             logger.info(f"Found {len(similar_entries)} semantically similar recommendations")
-            return similar_entries[0]["recommendations"]  # Return the recommendations
+            # Type cast since dict access returns Any
+            return cast(List[Dict[str, Any]], similar_entries[0]["recommendations"])
 
         return None
 
@@ -112,7 +114,8 @@ class SemanticCache:
         else:
             self.vectors = np.vstack([self.vectors, vector])
 
-        self.index.add(vector)
+        if self.index is not None:
+            self.index.add(vector)
 
         # Maintain size limit
         if len(self.entries) > self.max_entries:
@@ -130,7 +133,14 @@ class SemanticCache:
     async def get_stats(self) -> Dict[str, Any]:
         """Get semantic cache statistics"""
         if not self.entries:
-            return {"entries": 0, "total_usage": 0, "avg_similarity": 0}
+            return {
+                "entries": 0,
+                "total_usage": 0,
+                "avg_similarity": 0,
+                "max_entries": self.max_entries,
+                "embedding_dimension": self.embedding_dim,
+                "model_name": self.model_name
+            }
 
         total_usage = sum(entry["usage_count"] for entry in self.entries)
         avg_usage = total_usage / len(self.entries)
@@ -141,10 +151,20 @@ class SemanticCache:
             "total_usage": total_usage,
             "avg_usage_per_entry": avg_usage,
             "embedding_dimension": self.embedding_dim,
-            "model_name": self.model.get_sentence_embedding_dimension()
+            "model_name": self.model_name
+        }
+    
+    def get_model_info(self) -> Dict[str, Any]:
+        """Get information about the embedding model"""
+        return {
+            "model_name": self.model_name,
+            "provider": "HuggingFace",
+            "library": "sentence-transformers",
+            "embedding_dimension": self.embedding_dim,
+            "model_loaded": self.model is not None
         }
 
-    def _generate_embedding_from_key(self, key: str) -> Optional[np.ndarray]:
+    def _generate_embedding_from_key(self, key: str) -> Optional[np.ndarray[Any, np.dtype[np.floating[Any]]]]:
         """Generate embedding from semantic key"""
 
         try:
@@ -154,7 +174,7 @@ class SemanticCache:
 
             # Simple approach: use the key as text for embedding
             embedding = self.model.encode(key)
-            return embedding
+            return np.array(embedding, dtype=np.float32)
 
         except Exception as e:
             logger.error(f"Failed to generate embedding: {e}")
@@ -221,12 +241,13 @@ class SemanticCache:
         if embeddings:
             self.vectors = np.array(embeddings, dtype=np.float32)
             self.index = faiss.IndexFlatIP(self.embedding_dim)
-            self.index.add(self.vectors)
+            if self.index is not None:
+                self.index.add(self.vectors)
 
     async def find_similar_issues(self, issue_description: str, limit: int = 5) -> List[Dict[str, Any]]:
         """Find similar historical issues and their resolutions"""
 
-        if not self.entries:
+        if not self.entries or self.index is None:
             return []
 
         # Embed the issue description
@@ -271,6 +292,7 @@ class SemanticCache:
         else:
             self.vectors = np.vstack([self.vectors, vector])
 
-        self.index.add(vector)
+        if self.index is not None:
+            self.index.add(vector)
 
         logger.info("Learned from user feedback and updated semantic cache")

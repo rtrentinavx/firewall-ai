@@ -14,18 +14,20 @@ import RuleInputForm from '@/components/RuleInputForm';
 import { AuditResults } from '@/components/AuditResults';
 import { DiffViewer } from '@/components/DiffViewer';
 import { CacheStatsDisplay } from '@/components/CacheStatsDisplay';
+import { RuleFlowVisualization } from '@/components/RuleFlowVisualization';
 
 export default function FirewallAuditDashboard() {
   // State management
   const [rules, setRules] = useState<FirewallRule[]>([]);
-  const [auditIntent, setAuditIntent] = useState<string>('');
-  const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
-  const [isAuditing, setIsAuditing] = useState(false);
+  const [analysisIntent, setAnalysisIntent] = useState<string>('');
+  const [analysisResult, setAnalysisResult] = useState<AuditResult | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [cacheStats, setCacheStats] = useState<CacheStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('input');
   const [selectedProvider, setSelectedProvider] = useState<string>('aviatrix');
   const [useSampleData, setUseSampleData] = useState(false);
+  const [analyzedRules, setAnalyzedRules] = useState<FirewallRule[]>([]); // Store rules that were analyzed
   const cacheUtilization = cacheStats?.context_cache.utilization_percent;
   const semanticEntries = cacheStats?.semantic_cache.entries;
 
@@ -43,40 +45,43 @@ export default function FirewallAuditDashboard() {
     }
   };
 
-  const handleAudit = async () => {
+  const handleAnalyze = async () => {
     if (rules.length === 0 && !useSampleData) {
       setError('Please add firewall rules or use sample data');
       return;
     }
 
-    if (!auditIntent.trim()) {
-      setError('Please specify the audit intent');
+    if (!analysisIntent.trim()) {
+      setError('Please specify the analysis intent');
       return;
     }
 
-    setIsAuditing(true);
+    setIsAnalyzing(true);
     setError(null);
-    setAuditResult(null);
+    setAnalysisResult(null);
 
     try {
-      const auditRules = useSampleData ? utils.generateSampleRules(selectedProvider || 'gcp') : rules;
+      const analysisRules = useSampleData ? utils.generateSampleRules(selectedProvider || 'gcp') : rules;
+      
+      // Store the rules that were analyzed for Terraform generation
+      setAnalyzedRules(analysisRules);
 
       const request: AuditRequest = {
-        rules: auditRules,
-        intent: auditIntent,
+        rules: analysisRules,
+        intent: analysisIntent,
         cloud_provider: selectedProvider || 'gcp'
       };
 
       const result = await auditApi.auditRules(request);
-      setAuditResult(result);
+      setAnalysisResult(result);
       setActiveTab('results');
 
       // Refresh cache stats
       await loadCacheStats();
     } catch (err) {
-      console.error('Audit failed:', err);
+      console.error('Analysis failed:', err);
     } finally {
-      setIsAuditing(false);
+      setIsAnalyzing(false);
     }
   };
 
@@ -93,13 +98,24 @@ export default function FirewallAuditDashboard() {
     setRules(prev => [...prev, rule]);
   };
 
+  const handleAddMultipleRules = (newRules: FirewallRule[]) => {
+    setRules(prev => [...prev, ...newRules]);
+  };
+
   const handleRemoveRule = (ruleId: string) => {
     setRules(prev => prev.filter(r => r.id !== ruleId));
   };
 
   const handleLoadSampleData = () => {
-    const sampleRules = utils.generateSampleRules(selectedProvider || 'gcp');
-    setRules(sampleRules);
+    try {
+      const sampleRules = utils.generateSampleRules(selectedProvider || 'gcp');
+      console.log('Loading sample rules:', sampleRules);
+      setRules(sampleRules);
+      setError(null); // Clear any previous errors
+    } catch (err) {
+      console.error('Failed to load sample rules:', err);
+      setError('Failed to load sample rules. Please try again.');
+    }
   };
 
   const handleExportRules = () => {
@@ -142,9 +158,9 @@ export default function FirewallAuditDashboard() {
               <Shield className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Audit command center</p>
-              <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">Firewall audit workspace</h2>
-              <p className="text-sm text-slate-600 dark:text-slate-300">AI-guided rule analysis, conflicts, and remediation.</p>
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Intelligence command center</p>
+              <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">Firewall intelligence workspace</h2>
+              <p className="text-sm text-slate-600 dark:text-slate-300">AI-powered rule analysis, conflict detection, and optimization.</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -183,15 +199,15 @@ export default function FirewallAuditDashboard() {
                 Rule intake
               </TabsTrigger>
               <TabsTrigger value="audit" className="data-[state=active]:bg-white data-[state=active]:shadow dark:data-[state=active]:bg-slate-900">
-                Audit setup
+                Analysis setup
               </TabsTrigger>
               <TabsTrigger value="rules" className="data-[state=active]:bg-white data-[state=active]:shadow dark:data-[state=active]:bg-slate-900">
                 Rules
               </TabsTrigger>
-              <TabsTrigger value="results" disabled={!auditResult} className="data-[state=active]:bg-white data-[state=active]:shadow dark:data-[state=active]:bg-slate-900">
+              <TabsTrigger value="results" disabled={!analysisResult} className="data-[state=active]:bg-white data-[state=active]:shadow dark:data-[state=active]:bg-slate-900">
                 Results
               </TabsTrigger>
-              <TabsTrigger value="diff" disabled={!auditResult} className="data-[state=active]:bg-white data-[state=active]:shadow dark:data-[state=active]:bg-slate-900">
+              <TabsTrigger value="diff" disabled={!analysisResult} className="data-[state=active]:bg-white data-[state=active]:shadow dark:data-[state=active]:bg-slate-900">
                 Diff view
               </TabsTrigger>
             </TabsList>
@@ -227,7 +243,11 @@ export default function FirewallAuditDashboard() {
                   <Badge variant="secondary">{rules.length} rules</Badge>
                 </div>
                 <div className="mt-4">
-                  <RuleInputForm onAddRule={handleAddRule} provider={selectedProvider as CloudProvider} />
+                  <RuleInputForm 
+                    onAddRule={handleAddRule} 
+                    onAddMultipleRules={handleAddMultipleRules}
+                    provider={selectedProvider as CloudProvider} 
+                  />
                 </div>
                 <div className="mt-4 flex flex-wrap gap-3">
                   <Button onClick={handleLoadSampleData} variant="outline">
@@ -268,8 +288,8 @@ export default function FirewallAuditDashboard() {
                     </Label>
                     <Textarea
                       id="intent"
-                      value={auditIntent}
-                      onChange={(e) => setAuditIntent(e.target.value)}
+                      value={analysisIntent}
+                      onChange={(e) => setAnalysisIntent(e.target.value)}
                       placeholder="Example: Allow public HTTPS, restrict database to private subnet, and block unused ports."
                       rows={4}
                       className="mt-2 bg-white/80 dark:bg-slate-900/60"
@@ -284,7 +304,7 @@ export default function FirewallAuditDashboard() {
                     ].map((template) => (
                       <button
                         key={template}
-                        onClick={() => setAuditIntent(template)}
+                        onClick={() => setAnalysisIntent(template)}
                         className="rounded-lg border border-slate-200/70 bg-white/70 px-3 py-2 text-left text-sm text-slate-600 hover:border-slate-300 dark:border-slate-800/70 dark:bg-slate-900/50 dark:text-slate-300"
                       >
                         {template}
@@ -295,8 +315,8 @@ export default function FirewallAuditDashboard() {
               </div>
 
               <div className="rounded-xl border border-slate-200/70 bg-gradient-to-br from-indigo-600 via-blue-600 to-purple-600 p-6 text-white shadow-lg">
-                <h3 className="text-lg font-semibold">Launch AI audit</h3>
-                <p className="mt-2 text-sm text-indigo-100">We will compare your rules against intent and best practices.</p>
+                <h3 className="text-lg font-semibold">Launch AI analysis</h3>
+                <p className="mt-2 text-sm text-indigo-100">Neural engine will analyze your rules against intent and security best practices.</p>
                 <div className="mt-6 space-y-3 text-sm">
                   <div className="flex justify-between">
                     <span>Rules queued</span>
@@ -308,21 +328,21 @@ export default function FirewallAuditDashboard() {
                   </div>
                   <div className="flex justify-between">
                     <span>Intent status</span>
-                    <span className="font-semibold">{auditIntent.trim() ? 'Ready' : 'Missing'}</span>
+                    <span className="font-semibold">{analysisIntent.trim() ? 'Ready' : 'Missing'}</span>
                   </div>
                 </div>
                 <Button
-                  onClick={handleAudit}
-                  disabled={isAuditing || (rules.length === 0 && !useSampleData) || !auditIntent.trim()}
+                  onClick={handleAnalyze}
+                  disabled={isAnalyzing || (rules.length === 0 && !useSampleData) || !analysisIntent.trim()}
                   className="mt-6 w-full bg-white text-indigo-700 hover:bg-indigo-50"
                 >
-                  {isAuditing ? (
+                  {isAnalyzing ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />Running audit
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />Analyzing...
                     </>
                   ) : (
                     <>
-                      <RefreshCw className="mr-2 h-4 w-4" />Start audit
+                      <RefreshCw className="mr-2 h-4 w-4" />Analyze rules
                     </>
                   )}
                 </Button>
@@ -331,60 +351,79 @@ export default function FirewallAuditDashboard() {
           </TabsContent>
 
           <TabsContent value="rules" className="pt-6">
-            <div className="rounded-xl border border-slate-200/70 bg-white/80 p-5 dark:border-slate-800/70 dark:bg-slate-900/60">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold text-slate-900 dark:text-white">Rules overview</h3>
-                <Badge variant="secondary">{rules.length} rules</Badge>
+            <div className="space-y-5">
+              {/* Flow Visualization */}
+              <div className="rounded-xl border border-slate-200/70 bg-white/80 p-5 dark:border-slate-800/70 dark:bg-slate-900/60">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-900 dark:text-white">Network Flow Diagram</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Visual representation of firewall rules</p>
+                  </div>
+                  <Badge variant="secondary">{rules.length} rules</Badge>
+                </div>
+                <RuleFlowVisualization rules={rules} />
               </div>
-              <div className="mt-4 space-y-3">
-                {rules.length === 0 && (
-                  <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                    No rules loaded yet.
-                  </div>
-                )}
-                {rules.map((rule, index) => (
-                  <div key={rule.id || index} className="rounded-lg border border-slate-200/70 bg-white/70 p-3 text-sm dark:border-slate-800/70 dark:bg-slate-900/50">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-slate-900 dark:text-white">{rule.name || `Rule ${index + 1}`}</p>
-                        <p className="text-slate-500 dark:text-slate-400">
-                          {rule.direction} • {rule.action} • {rule.protocols?.join(', ') || 'any'}
-                        </p>
+
+              {/* Rules List */}
+              <div className="rounded-xl border border-slate-200/70 bg-white/80 p-5 dark:border-slate-800/70 dark:bg-slate-900/60">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-white">Rules overview</h3>
+                  <Badge variant="secondary">{rules.length} rules</Badge>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {rules.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                      No rules loaded yet.
+                    </div>
+                  )}
+                  {rules.map((rule, index) => (
+                    <div key={rule.id || index} className="rounded-lg border border-slate-200/70 bg-white/70 p-3 text-sm dark:border-slate-800/70 dark:bg-slate-900/50">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-slate-900 dark:text-white">{rule.name || `Rule ${index + 1}`}</p>
+                          <p className="text-slate-500 dark:text-slate-400">
+                            {rule.direction} • {rule.action} • {rule.protocols?.join(', ') || 'any'}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveRule(rule.id || `rule-${index}`)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          Remove
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveRule(rule.id || `rule-${index}`)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        Remove
-                      </Button>
+                      <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                        {rule.source_ranges?.join(', ') || 'No source'} → {rule.destination_ranges?.join(', ') || 'No destination'}
+                      </div>
                     </div>
-                    <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      {rule.source_ranges?.join(', ') || 'No source'} → {rule.destination_ranges?.join(', ') || 'No destination'}
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           </TabsContent>
 
           <TabsContent value="results" className="pt-6">
-            {auditResult ? (
-              <AuditResults result={auditResult} />
+            {analysisResult ? (
+              <AuditResults 
+                result={analysisResult} 
+                rules={analyzedRules}
+                provider={selectedProvider as CloudProvider}
+              />
             ) : (
               <div className="rounded-xl border border-dashed border-slate-200/70 p-10 text-center text-sm text-slate-500 dark:border-slate-800/70 dark:text-slate-400">
-                Run an audit to see security analysis results.
+                Run analysis to see security intelligence results.
               </div>
             )}
           </TabsContent>
 
           <TabsContent value="diff" className="pt-6">
-            {auditResult ? (
-              <DiffViewer result={auditResult} />
+            {analysisResult ? (
+              <DiffViewer result={analysisResult} />
             ) : (
               <div className="rounded-xl border border-dashed border-slate-200/70 p-10 text-center text-sm text-slate-500 dark:border-slate-800/70 dark:text-slate-400">
-                Run an audit to compare Terraform changes.
+                Run analysis to compare Terraform changes.
               </div>
             )}
           </TabsContent>

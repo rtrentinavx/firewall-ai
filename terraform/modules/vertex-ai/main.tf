@@ -1,3 +1,21 @@
+terraform {
+  required_version = ">= 1.6.0"
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.0"
+    }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.0"
+    }
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.0"
+    }
+  }
+}
+
 variable "project_id" {
   type = string
 }
@@ -7,10 +25,6 @@ variable "region" {
 }
 
 variable "bucket_name" {
-  type = string
-}
-
-variable "resource_suffix" {
   type = string
 }
 
@@ -37,13 +51,13 @@ resource "local_file" "vector_search_config" {
   content = jsonencode({
     contentsDeltaUri = "gs://${var.bucket_name}/embeddings/"
     config = {
-      dimensions                 = 768
+      dimensions                = 768
       approximateNeighborsCount = 10
       distanceMeasureType       = "DOT_PRODUCT_DISTANCE"
       algorithmConfig = {
         treeAhConfig = {
-          leafNodeEmbeddingCount      = 1000
-          leafNodesToSearchPercent    = 10
+          leafNodeEmbeddingCount   = 1000
+          leafNodesToSearchPercent = 10
         }
       }
     }

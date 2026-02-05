@@ -1,5 +1,5 @@
 import axios, { AxiosResponse } from 'axios';
-import { ApiResponse, AuditRequest, AuditResult, FirewallRule, NormalizedRule, CacheStats } from '@/types';
+import { ApiResponse, AuditRequest, AuditResult, FirewallRule, NormalizedRule, CacheStats, CloudProvider, User } from '@/types';
 
 // Create axios instance with base configuration
 const api = axios.create({
@@ -52,7 +52,9 @@ export const auditApi = {
 
   // Get cache statistics
   getCacheStats: async (): Promise<CacheStats> => {
-    const response: AxiosResponse<ApiResponse<CacheStats>> = await api.get('/cache/stats');
+    const response: AxiosResponse<ApiResponse<CacheStats>> = await api.get('/cache/stats', {
+      timeout: 10000, // 10 seconds timeout for cache stats
+    });
     if (!response.data.success) {
       throw new Error(response.data.error || 'Failed to get cache stats');
     }
@@ -106,7 +108,62 @@ export const auditApi = {
   healthCheck: async (): Promise<any> => {
     const response: AxiosResponse<any> = await api.get('/health');
     return response.data;
-  }
+  },
+
+  // Parse Terraform content
+  parseTerraform: async (content: string, cloudProvider: string = 'aviatrix'): Promise<FirewallRule[]> => {
+    const response: AxiosResponse<ApiResponse<FirewallRule[]>> = await api.post('/terraform/parse', {
+      content,
+      cloud_provider: cloudProvider,
+      use_ai: true
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to parse Terraform');
+    }
+    return response.data.rules || [];
+  },
+
+  // Validate Terraform content
+  validateTerraform: async (content: string, cloudProvider: string = 'aviatrix'): Promise<any> => {
+    const response: AxiosResponse<ApiResponse<any>> = await api.post('/terraform/validate', {
+      content,
+      cloud_provider: cloudProvider
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to validate Terraform');
+    }
+    return response.data.validation;
+  },
+
+  // Parse Terraform directory
+  parseTerraformDirectory: async (path: string, cloudProvider: string = 'aviatrix'): Promise<FirewallRule[]> => {
+    const response: AxiosResponse<ApiResponse<FirewallRule[]>> = await api.post('/terraform/parse-directory', {
+      path,
+      cloud_provider: cloudProvider
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to parse Terraform directory');
+    }
+    return response.data.rules || [];
+  },
+
+  // Get current user
+  getCurrentUser: async (): Promise<User> => {
+    const response: AxiosResponse<ApiResponse<User> & { user?: User }> = await api.get('/auth/me');
+    if (!response.data.success || !response.data.user) {
+      throw new Error(response.data.error || 'Failed to get current user');
+    }
+    // Map simple user object to User type
+    const userData = response.data.user;
+    return {
+      user_id: 'admin',
+      username: userData.username || 'admin',
+      email: userData.email || 'admin@firewall-ai.local',
+      role: (userData.role || 'admin') as 'admin' | 'user' | 'viewer',
+      created_at: new Date().toISOString(),
+      active: true
+    };
+  },
 };
 
 // Utility functions
@@ -152,27 +209,185 @@ export const utils = {
     return errors;
   },
 
+  // Generate Terraform code from firewall rules
+  generateTerraformCode: (rules: FirewallRule[], provider: CloudProvider = 'gcp'): string => {
+    if (rules.length === 0) {
+      return '# No rules to generate Terraform code for';
+    }
+
+    const terraformBlocks: string[] = [];
+
+    rules.forEach((rule, index) => {
+      const resourceName = rule.name.toLowerCase().replace(/[^a-z0-9]/g, '-') || `firewall-rule-${index + 1}`;
+      
+      if (provider === 'gcp') {
+        // GCP allows multiple allow/deny blocks for different protocols
+        const allowDenyBlocks: string[] = [];
+        
+        if (rule.protocols && rule.protocols.length > 0) {
+          rule.protocols.forEach((protocol, protoIdx) => {
+            const ports = rule.ports && rule.ports.length > protoIdx 
+              ? [rule.ports[protoIdx]] 
+              : (rule.ports && rule.ports.length > 0 ? rule.ports : []);
+            
+            allowDenyBlocks.push(`  ${rule.action === 'allow' ? 'allow' : 'deny'} {
+    protocol = "${protocol}"
+${ports.length > 0 ? `    ports    = [${ports.map(p => `"${p}"`).join(', ')}]` : ''}
+  }`);
+          });
+        } else {
+          // No protocols specified, use "all"
+          allowDenyBlocks.push(`  ${rule.action === 'allow' ? 'allow' : 'deny'} {
+    protocol = "all"
+  }`);
+        }
+
+        terraformBlocks.push(`resource "google_compute_firewall" "${resourceName}" {
+  name        = "${rule.name}"
+  description = "${rule.description || 'Firewall rule created via Firewall AI'}"
+  network     = "${rule.network || 'default'}"
+  direction   = "${rule.direction.toUpperCase()}"
+  priority    = ${rule.priority || 1000}
+${rule.disabled ? '  disabled = true' : ''}
+
+${allowDenyBlocks.join('\n\n')}
+
+${rule.source_ranges && rule.source_ranges.length > 0 
+  ? `  source_ranges = [${rule.source_ranges.map(r => `"${r}"`).join(', ')}]`
+  : ''}
+${rule.destination_ranges && rule.destination_ranges.length > 0 
+  ? `  destination_ranges = [${rule.destination_ranges.map(r => `"${r}"`).join(', ')}]`
+  : ''}
+${rule.source_tags && rule.source_tags.length > 0 
+  ? `  source_tags = [${rule.source_tags.map(t => `"${t}"`).join(', ')}]`
+  : ''}
+${rule.target_tags && rule.target_tags.length > 0 
+  ? `  target_tags = [${rule.target_tags.map(t => `"${t}"`).join(', ')}]`
+  : ''}
+${rule.logging_enabled ? '  enable_logging = true' : ''}
+}
+
+`);
+      } else if (provider === 'azure') {
+        terraformBlocks.push(`resource "azurerm_network_security_rule" "${resourceName}" {
+  name                        = "${rule.name}"
+  resource_group_name         = var.resource_group_name
+  network_security_group_name = var.network_security_group_name
+  priority                    = ${rule.priority || 100}
+  direction                   = "${rule.direction === 'ingress' ? 'Inbound' : 'Outbound'}"
+  access                      = "${rule.action === 'allow' ? 'Allow' : 'Deny'}"
+  protocol                    = "${rule.protocols && rule.protocols.length > 0 ? rule.protocols[0].toUpperCase() : '*'}"
+  
+${rule.source_ranges && rule.source_ranges.length > 0 
+  ? `  source_address_prefix      = "${rule.source_ranges[0]}"`
+  : `  source_address_prefix      = "*"`}
+${rule.destination_ranges && rule.destination_ranges.length > 0 
+  ? `  destination_address_prefix = "${rule.destination_ranges[0]}"`
+  : `  destination_address_prefix = "*"`}
+${rule.ports && rule.ports.length > 0 
+  ? `  source_port_range          = "*"\n  destination_port_range     = "${rule.ports[0]}"`
+  : `  source_port_range          = "*"\n  destination_port_range     = "*"`}
+}
+
+`);
+      } else if (provider === 'aviatrix') {
+        // Extract web groups from provider_specific or tags
+        const webGroups: string[] = [];
+        
+        // Check provider_specific for web_groups
+        if (rule.provider_specific?.web_groups && Array.isArray(rule.provider_specific.web_groups)) {
+          webGroups.push(...rule.provider_specific.web_groups);
+        }
+        
+        // Extract web groups from source_tags (prefixed with "webgroup:")
+        if (rule.source_tags) {
+          const sourceWebGroups = rule.source_tags
+            .filter(tag => tag.startsWith('webgroup:'))
+            .map(tag => tag.replace('webgroup:', ''));
+          webGroups.push(...sourceWebGroups);
+        }
+        
+        // Extract web groups from target_tags (prefixed with "webgroup:")
+        if (rule.target_tags) {
+          const targetWebGroups = rule.target_tags
+            .filter(tag => tag.startsWith('webgroup:'))
+            .map(tag => tag.replace('webgroup:', ''));
+          webGroups.push(...targetWebGroups);
+        }
+        
+        // Remove duplicates
+        const uniqueWebGroups = Array.from(new Set(webGroups));
+        
+        // Aviatrix DCF Ruleset format
+        terraformBlocks.push(`resource "aviatrix_dcf_ruleset" "${resourceName}" {
+  name = "${rule.name}"
+
+  rules {
+    name     = "${rule.name}"
+    action   = "${rule.action === 'allow' ? 'PERMIT' : 'DENY'}"
+    protocol = "${rule.protocols && rule.protocols.length > 0 ? rule.protocols[0].toUpperCase() : 'ANY'}"
+    
+${rule.source_ranges && rule.source_ranges.length > 0 
+  ? `    src_smart_groups = [${rule.source_ranges.map(r => `"${r}"`).join(', ')}]`
+  : ''}
+${rule.destination_ranges && rule.destination_ranges.length > 0 
+  ? `    dst_smart_groups = [${rule.destination_ranges.map(r => `"${r}"`).join(', ')}]`
+  : ''}
+${uniqueWebGroups.length > 0 
+  ? `    web_groups = [${uniqueWebGroups.map(wg => `"${wg}"`).join(', ')}]`
+  : ''}
+${rule.ports && rule.ports.length > 0 
+  ? `    port_ranges {
+      lo = ${rule.ports[0].split('-')[0] || rule.ports[0]}
+      hi = ${rule.ports[0].split('-')[1] || rule.ports[0]}
+    }`
+  : ''}
+    logging = ${rule.logging_enabled ? 'true' : 'false'}
+    watch   = false
+  }
+}
+
+`);
+      } else {
+        // Generic fallback
+        terraformBlocks.push(`# Firewall Rule: ${rule.name}
+# Provider: ${provider}
+# Direction: ${rule.direction}
+# Action: ${rule.action}
+# This rule needs provider-specific Terraform resource definition
+
+`);
+      }
+    });
+
+    return terraformBlocks.join('\n');
+  },
+
   // Generate sample rules for testing
   generateSampleRules: (provider: string = 'gcp'): FirewallRule[] => {
+    const validProvider = provider as CloudProvider;
+    const timestamp = Date.now();
+    
     const baseRules: FirewallRule[] = [
       {
-        id: 'rule-1',
+        id: `sample-rule-1-${timestamp}`,
         name: 'allow-ssh',
         description: 'Allow SSH access from anywhere',
-        cloud_provider: provider as any,
+        cloud_provider: validProvider,
         direction: 'ingress',
         action: 'allow',
         priority: 1000,
         source_ranges: ['0.0.0.0/0'],
         protocols: ['tcp'],
         ports: ['22'],
-        target_tags: ['web-server']
+        target_tags: ['web-server'],
+        logging_enabled: true
       },
       {
-        id: 'rule-2',
+        id: `sample-rule-2-${timestamp}`,
         name: 'allow-http',
         description: 'Allow HTTP access',
-        cloud_provider: provider as any,
+        cloud_provider: validProvider,
         direction: 'ingress',
         action: 'allow',
         priority: 1001,
@@ -180,6 +395,31 @@ export const utils = {
         protocols: ['tcp'],
         ports: ['80'],
         target_tags: ['web-server']
+      },
+      {
+        id: `sample-rule-3-${timestamp}`,
+        name: 'allow-https',
+        description: 'Allow HTTPS access',
+        cloud_provider: validProvider,
+        direction: 'ingress',
+        action: 'allow',
+        priority: 1002,
+        source_ranges: ['0.0.0.0/0'],
+        protocols: ['tcp'],
+        ports: ['443'],
+        target_tags: ['web-server']
+      },
+      {
+        id: `sample-rule-4-${timestamp}`,
+        name: 'deny-all-egress',
+        description: 'Deny all outbound traffic (restrictive example)',
+        cloud_provider: validProvider,
+        direction: 'egress',
+        action: 'deny',
+        priority: 65534,
+        source_ranges: [],
+        protocols: ['all'],
+        ports: []
       }
     ];
 

@@ -3,30 +3,45 @@ Flask==2.3.3
 Flask-CORS==4.0.0
 python-dotenv==1.0.0
 Werkzeug==2.3.7
+gunicorn==21.2.0
 
-# LangGraph and LangChain for agentic workflows
-langgraph==0.0.32
-langchain==0.1.5
-langchain-google-vertexai==0.1.2
-langchain-community==0.0.13
+# LangGraph and LangChain for agentic workflows (all use langchain-core 0.2.x)
+# Pin langchain-core explicitly to help pip resolve dependencies faster
+langchain-core>=0.2.0,<0.3.0
+langgraph>=0.2.0,<0.3.0
+langchain>=0.2.0,<0.3.0
+langchain-google-vertexai>=1.0.6,<2.0.0
+langchain-community>=0.2.0,<0.3.0
 
-# Google Cloud and Vertex AI
-google-cloud-aiplatform==1.39.0
+# Google Cloud and Vertex AI (>=1.56.0, >=2.17.0 required by langchain-google-vertexai 1.x)
+google-cloud-aiplatform>=1.56.0,<2.0.0
 google-cloud-firestore==2.14.0
-google-cloud-storage==2.10.0
+google-cloud-storage>=2.17.0,<3.0.0
 google-cloud-secret-manager==2.17.0
-google-auth==2.23.4
+# >=2.47.0 required by google-cloud-aiplatform 1.131+
+google-auth>=2.47.0,<3.0.0
 
 # Data processing and validation
-pydantic==2.5.2
-pandas==2.1.4
-numpy==1.26.2
+# pydantic 2.7.4+ required by langchain-core 0.2.x
+pydantic>=2.7.4,<3.0.0
+# pandas is a dependency of langchain but not directly used in our code
+# Using newer version with better wheel support
+pandas>=2.2.0,<3.0.0
+# numpy pinned to avoid conflicts with pandas and other packages
+numpy>=1.26.2,<2.0.0
 jsonschema==4.19.2
 
 # Caching and vector operations
 redis==5.0.1
-faiss-cpu==1.7.4
+# faiss-cpu 1.7.4 not available for Python 3.14+, using latest compatible version
+faiss-cpu>=1.13.0,<2.0.0
 sentence-transformers==2.2.2
+
+# RAG and document processing
+PyPDF2==3.0.1
+python-docx==1.1.0
+beautifulsoup4==4.12.2
+PyYAML==6.0.1
 
 # API and utilities
 requests==2.31.0
@@ -44,6 +59,17 @@ mypy==1.7.1
 # Logging and monitoring
 structlog==23.2.0
 sentry-sdk[flask]==1.38.0
+
+# OpenTelemetry for observability (core packages)
+opentelemetry-api>=1.24.0,<2.0.0
+opentelemetry-sdk>=1.24.0,<2.0.0
+opentelemetry-instrumentation-flask>=0.45b0,<1.0.0
+opentelemetry-instrumentation-requests>=0.45b0,<1.0.0
+opentelemetry-semantic-conventions>=0.45b0,<1.0.0
+# Note: GCP exporters are optional (app will fall back to custom collector if not available)
+# To enable GCP export, install separately with: pip install --pre opentelemetry-exporter-gcp-monitoring opentelemetry-exporter-gcp-trace
+# opentelemetry-exporter-gcp-monitoring>=1.11.0a0  # Pre-release only
+# opentelemetry-exporter-gcp-trace>=1.11.0,<2.0.0  # Stable version available
 
 # Azure integration (for multi-cloud support)
 azure-identity==1.15.0

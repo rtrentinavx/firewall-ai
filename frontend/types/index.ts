@@ -11,6 +11,14 @@ export interface ApiResponse<T> {
   message?: string;
   similar_issues?: T;
   providers?: T;
+  rules?: T;
+  count?: number;
+  directory?: string;
+  validation?: any;
+  warnings?: string[];
+  errors?: string[];
+  metadata?: any;
+  parser?: string;
 }
 export type CloudProvider = 'gcp' | 'azure' | 'aviatrix' | 'cisco' | 'palo_alto';
 
@@ -117,6 +125,26 @@ export interface NormalizedRule {
   schema_version: string;
   normalization_timestamp: string;
   confidence_score: number;
+}
+
+// User Management Types
+export interface User {
+  user_id: string;
+  username: string;
+  email: string;
+  role: 'admin' | 'user' | 'viewer';
+  created_at: string;
+  last_login?: string;
+  active: boolean;
+}
+
+export interface UserStats {
+  total_users: number;
+  active_users: number;
+  inactive_users: number;
+  admins: number;
+  users: number;
+  viewers: number;
 }
 
 // UI State Types

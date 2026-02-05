@@ -31,7 +31,6 @@ batch_audit_schedule = "0 2 * * 1"  # Monday 2 AM
 
 # Feature Flags
 enable_shadow_mode    = true
-enable_cloud_armor    = true
 enable_vpc_connector  = false
 
 # Labels
